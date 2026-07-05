@@ -1,0 +1,505 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+:root {
+  --bg: #0f0f13;
+  --panel: #1a1a22;
+  --text: #e8e8ee;
+  --muted: #9a9aa8;
+  --accent: #ff5f9e;
+  --border: #2c2c38;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP',
+    sans-serif;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 12px 20px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--accent);
+  text-decoration: none;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.header nav {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.header nav a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.header nav a:hover {
+  color: var(--text);
+}
+
+/* ログイン中のアバター + ログアウトのまとまり。ナビと区切り線で分離 */
+.user-cluster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 14px;
+  margin-left: 2px;
+  border-left: 1px solid var(--border);
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #ffb4d6);
+  color: #1a0a12;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.user-name {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.logout-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.logout-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.menu-toggle {
+  display: none;
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 6px;
+}
+
+@media (max-width: 639px) {
+  .brand {
+    font-size: 15px;
+  }
+
+  .menu-toggle {
+    display: inline-flex;
+  }
+
+  .header nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 20px 20px;
+  }
+
+  .header nav.open {
+    display: flex;
+  }
+
+  .header nav a {
+    font-size: 15px;
+  }
+
+  .user-cluster {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding-left: 0;
+    margin-left: 0;
+    padding-top: 14px;
+  }
+
+  .user-cluster .user-name {
+    display: inline;
+  }
+}
+
+.main {
+  padding: 16px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ---- エラーバナー ---- */
+.banner-error {
+  background: rgba(255, 112, 112, 0.12);
+  border: 1px solid rgba(255, 112, 112, 0.45);
+  color: #ff9c9c;
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ---- 新着バナー ---- */
+.banner-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(255, 95, 158, 0.1);
+  border: 1px solid rgba(255, 95, 158, 0.4);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+
+/* ---- 画像グリッド ---- */
+.toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.chip {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chip.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* モバイルはminmax(200px,...)だと1列に潰れて間延びするので、
+   immich側の参考実装(4列/6列/8列)に倣って幅ではなく列数で刻む */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+@media (min-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .grid {
+    grid-template-columns: repeat(8, 1fr);
+  }
+}
+
+.cell {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--panel);
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+.cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.15s ease;
+}
+
+.cell:hover img {
+  transform: scale(1.04);
+}
+
+.cell .badge {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.status {
+  text-align: center;
+  color: var(--muted);
+  padding: 24px;
+  font-size: 14px;
+}
+
+/* ---- ライトボックス ---- */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+
+.lightbox img {
+  max-width: 95vw;
+  max-height: 82vh;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.lightbox .meta {
+  margin-top: 12px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.lightbox .meta a {
+  color: var(--accent);
+}
+
+/* ---- アカウント管理 ---- */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.card h2 {
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+.form-row {
+  display: flex;
+  gap: 8px;
+}
+
+.form-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+button.primary {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+button.danger {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: #ff7070;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+table.accounts,
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+table.accounts th,
+table.accounts td,
+table.data-table th,
+table.data-table td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+table.accounts th,
+table.data-table th {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 12px;
+}
+
+@media (max-width: 639px) {
+  /* X User ID と 最終取得ID は技術的な情報なのでスマホでは隠す（アカウント管理表のみ） */
+  table.accounts th:nth-child(2),
+  table.accounts td:nth-child(2),
+  table.accounts th:nth-child(4),
+  table.accounts td:nth-child(4) {
+    display: none;
+  }
+}
+
+/* ---- API使用状況 ---- */
+.stat-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.stat-tile {
+  flex: 1;
+  min-width: 140px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.usage-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 140px;
+  padding-top: 28px;
+}
+
+.bar-col {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.bar {
+  width: 100%;
+  min-height: 2px;
+  background: var(--accent);
+  border-radius: 3px 3px 0 0;
+  opacity: 0.75;
+  transition: opacity 0.15s ease;
+}
+
+.bar-col:hover .bar {
+  opacity: 1;
+}
+
+.bar-tip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: center;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s ease;
+  z-index: 1;
+}
+
+.bar-col:hover .bar-tip {
+  opacity: 1;
+}
+
+.error-msg {
+  color: #ff7070;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.note {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 8px;
+  line-height: 1.6;
+}

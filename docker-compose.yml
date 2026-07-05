@@ -1,0 +1,38 @@
+name: oshi-x-image-collector
+
+services:
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${PG_USER:?PG_USER を .env に設定してください}:${PG_PASSWORD}@${PG_HOST:?PG_HOST を .env に設定してください}:${PG_PORT:?PG_PORT を .env に設定してください}/${PG_DB:-oshi}
+      X_BEARER_TOKEN: ${X_BEARER_TOKEN:?X_BEARER_TOKEN を .env に設定してください}
+      # バッチ実行スケジュール（cron形式、デフォルト: 60分ごとの新着チェック）
+      CRON_SCHEDULE: "*/60 * * * *"
+      # コンテナ起動直後に1回バッチを実行するか
+      RUN_ON_START: "false"
+      # 1アカウントあたり1回のバッチで遡るページ数（1ページ=最大100ツイート）
+      MAX_PAGES_PER_ACCOUNT: 1
+      # 1回のバッチでバックアップする画像の最大枚数
+      BACKUP_BATCH_SIZE: 20
+      FACE_BATCH_SIZE: 20
+      # true にするとバッチごとに BACKFILL_PAGES ずつ過去へ遡って取得する。
+      BACKFILL: "false"
+      # 1バッチあたり遡るページ数（1ページ=最大100ツイート）
+      BACKFILL_PAGES: 1
+      # X APIの read 単価（USD）。https://docs.x.com/x-api/getting-started/pricing を参照し改定時はここを更新
+      UNIT_COST_USD_USER_READ: 0.01
+      UNIT_COST_USD_POSTS_READ: 0.005
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET を .env に設定してください}
+      AUTH_URL: ${AUTH_URL:?AUTH_URL を .env に設定してください}
+      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:-true}
+      OIDC_ISSUER: ${OIDC_ISSUER:?OIDC_ISSUER を .env に設定してください}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?OIDC_CLIENT_ID を .env に設定してください}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?OIDC_CLIENT_SECRET を .env に設定してください}
+      CLOUDFLARE_R2_BUCKET_NAME: ${CLOUDFLARE_R2_BUCKET_NAME:?CLOUDFLARE_R2_BUCKET_NAME を .env に設定してください}
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:?CLOUDFLARE_ACCOUNT_ID を .env に設定してください}
+      CLOUDFLARE_ACCOUNT_ACCESS_KEY_ID: ${CLOUDFLARE_ACCOUNT_ACCESS_KEY_ID:?CLOUDFLARE_ACCOUNT_ACCESS_KEY_ID を .env に設定してください}
+      CLOUDFLARE_ACCOUNT_API_SECRET: ${CLOUDFLARE_ACCOUNT_API_SECRET:?CLOUDFLARE_ACCOUNT_API_SECRET を .env に設定してください}
+      CLOUDFLARE_ACCOUNT_ENDPOINT: ${CLOUDFLARE_ACCOUNT_ENDPOINT:?CLOUDFLARE_ACCOUNT_ENDPOINT を .env に設定してください}
+    ports:
+      - "3000:3000"
