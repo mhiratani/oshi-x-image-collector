@@ -1,0 +1,25 @@
+*.iml
+.gradle
+/local.properties
+/dist
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+/.idea/deploymentTargetSelector.xml
+/.idea/deviceManager.xml
+/.idea/appInsightsSettings.xml
+/.idea/runConfigurations.xml
+.DS_Store
+# Nested IDE / SDK artifacts generated under the module dir by Gradle / Android Studio
+/app/.idea/
+/app/local.properties
+/build
+/captures
+.externalNativeBuild
+.cxx
+*.apk
+*.aab
+**/.kotlin

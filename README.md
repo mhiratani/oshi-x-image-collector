@@ -9,6 +9,7 @@ X（Twitter）の指定アカウントから画像を定期収集し、バック
 - `db/init/02_api_usage.sql` : X API呼び出しのコスト記録テーブル
 - `db/init/03_media_reveal.sql` : cron収集分を「最新を取得」ボタンで公開する仕組み（media_assets.revealed）
 - `db/init/04_share_links.sql` : アカウント単位のログイン不要な共有リンク（share_links）
+- `android-app/` : Android版（Kotlin, 新規）。設計は `docs/android-app-design.md` を参照。現状はビルド可能な最小スケルトンのみ（機能未実装）
 
 `docker-compose.yml` には `frontend` サービスしか含まれていません。Postgres はこのリポジトリの管理外で、既存の外部DBサーバーに接続する構成です。
 

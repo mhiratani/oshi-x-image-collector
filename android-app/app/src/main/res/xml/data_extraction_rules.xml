@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup / transfer rules (Android 12+).
+  Empty for now — no local database/file storage exists yet in this skeleton.
+  Add <include> entries here once Room DB / local image storage are introduced.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+    </cloud-backup>
+    <device-transfer>
+    </device-transfer>
+</data-extraction-rules>
