@@ -20,18 +20,6 @@ val appLocalProps = Properties().also { props ->
     if (f.exists()) f.inputStream().use { props.load(it) }
 }
 
-// ──────────────────────────────────────────────────────────────
-// Firebase (google-services) プラグインは google-services.json が
-// 配置されている場合のみ適用する。未配置でもローカル機能のビルド・実行が
-// 通るようにするため（クラウドバックアップ関連コードは実行時に
-// FirebaseApp 初期化有無をチェックしてガードする）。
-// セットアップ手順: android-app/README.md 参照。
-// ──────────────────────────────────────────────────────────────
-val hasGoogleServicesConfig = file("google-services.json").exists()
-if (hasGoogleServicesConfig) {
-    apply(plugin = "com.google.gms.google-services")
-}
-
 android {
     namespace = "com.hilamalu.oshixcollector"
     compileSdk = 36
@@ -131,10 +119,11 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.datastore.preferences)
 
-    // Firebase（クラウドバックアップ: Firestore + Auth）
+    // Firebase（クラウドバックアップ: Firestore + Auth。設定画面で入力した値から
+    // 実行時にFirebaseOptionsで初期化するため google-services.json は使わない）
     implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.auth.ktx)
-    implementation(libs.firebase.firestore.ktx)
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
 
     // Google Sign-In（Credential Manager経由）
     implementation(libs.androidx.credentials)

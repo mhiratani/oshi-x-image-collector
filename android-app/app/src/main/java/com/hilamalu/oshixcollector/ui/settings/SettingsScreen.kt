@@ -107,6 +107,40 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                 modifier = Modifier.fillMaxWidth()
             )
 
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+            Text(stringResource(R.string.settings_firebase_section), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.settings_firebase_description), modifier = Modifier.padding(vertical = 8.dp))
+            OutlinedTextField(
+                value = viewModel.firebaseApiKey,
+                onValueChange = { viewModel.firebaseApiKey = it },
+                label = { Text(stringResource(R.string.settings_firebase_api_key)) },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = viewModel.firebaseProjectId,
+                onValueChange = { viewModel.firebaseProjectId = it },
+                label = { Text(stringResource(R.string.settings_firebase_project_id)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = viewModel.firebaseAppId,
+                onValueChange = { viewModel.firebaseAppId = it },
+                label = { Text(stringResource(R.string.settings_firebase_app_id)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = viewModel.firebaseWebClientId,
+                onValueChange = { viewModel.firebaseWebClientId = it },
+                label = { Text(stringResource(R.string.settings_firebase_web_client_id)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
             TextButton(onClick = { viewModel.save() }, modifier = Modifier.padding(top = 8.dp)) {
                 Text(stringResource(R.string.settings_save))
             }

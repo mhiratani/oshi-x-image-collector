@@ -166,3 +166,12 @@ sequenceDiagram
 - コレクション構成: `users/{uid}/targetAccounts/{screenName}`, `users/{uid}/mediaAssets/{mediaKey}`（`android-app/firestore.rules` 参照）。
 - 副次効果: 同じGoogleアカウントでWeb側もFirebase Authでログインすれば同一データが見られるため、3.1節が目指した「同一ユーザーの複数クライアント」をPostgres接続文字列の共有より素直な形で満たせる。
 - Web側（Next.js）のPostgresは今回変更していない。Web側もFirestoreへ統一するかは次フェーズで検討する。
+
+### Firebase設定はビルド時ファイルではなく設定画面から入力する方式に変更
+
+当初は`google-services.json`をビルドに組み込む方式で実装したが、「R2と同様、Firestoreもアプリの設定画面から必要な情報を入力するだけで使えるようにしたい」という要望を受けて変更した。
+
+- `google-services.json` / Google Services Gradleプラグインは使わない。
+- 代わりに、設定画面で入力した4項目（APIキー・プロジェクトID・アプリID・Google Sign-In用ウェブクライアントID）から、実行時に`FirebaseOptions`で名前付きFirebaseAppを初期化する（`FirebaseAppProvider`）。これらの値はAPIキーを含め非秘匿情報であり、Firestoreの安全性は値を隠すことではなくセキュリティルール側（`request.auth.uid == uid`）で担保する。
+- Firebaseプロジェクトの作成・Firestore/Google Sign-Inプロバイダの有効化自体はGoogleアカウントでの操作が必要なため、依然として開発者が一度だけFirebaseコンソールで行う必要がある（アプリからは代行できない）。その後に得られる4つの値を設定画面に入力するだけで、以降は「クラウドバックアップをONにする→Googleでサインイン」だけで自動的に同期されるようになる。
+- 同じ4つの値を他の人（友人等）の端末にも入力してもらえば、同じFirebaseプロジェクトを使い回せる（各自のGoogleアカウントでFirestoreセキュリティルールにより分離される）。

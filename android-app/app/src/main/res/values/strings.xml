@@ -27,7 +27,13 @@
     <string name="settings_r2_endpoint">エンドポイント（https://&lt;ACCOUNT_ID&gt;.r2.cloudflarestorage.com）</string>
     <string name="settings_cloud_backup_section">クラウドバックアップ</string>
     <string name="settings_cloud_backup_description">ONにするとGoogleサインインが必要です。画像本体はR2、メタデータはFirestoreへ非同期でバックアップされます（失敗してもローカルの表示には影響しません）。</string>
-    <string name="settings_cloud_backup_firebase_not_configured">Firebaseが未設定のため利用できません（android-app/README.md参照）</string>
+    <string name="settings_firebase_section">Firebase（Firestore同期・Googleサインイン用）</string>
+    <string name="settings_firebase_description">Firebaseコンソール（https://console.firebase.google.com/）でプロジェクトを作成し、「プロジェクトの設定」に表示される値をここに入力してください（android-app/README.md参照）。</string>
+    <string name="settings_firebase_api_key">APIキー</string>
+    <string name="settings_firebase_project_id">プロジェクトID</string>
+    <string name="settings_firebase_app_id">アプリID（1:xxx:android:xxx）</string>
+    <string name="settings_firebase_web_client_id">Google Sign-In ウェブクライアントID</string>
+    <string name="settings_cloud_backup_firebase_not_configured">上記のFirebase設定を保存すると、クラウドバックアップが利用できるようになります</string>
     <string name="settings_cloud_backup_signed_in_as">サインイン中: %1$s</string>
     <string name="settings_save">保存</string>
     <string name="settings_saved">保存しました</string>

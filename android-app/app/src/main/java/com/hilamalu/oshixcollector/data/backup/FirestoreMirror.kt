@@ -2,10 +2,11 @@ package com.hilamalu.oshixcollector.data.backup
 
 import android.content.Context
 import android.util.Log
-import com.google.firebase.Firebase
-import com.google.firebase.firestore.firestore
+import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.FirebaseFirestore
 import com.hilamalu.oshixcollector.data.db.MediaAssetEntity
 import com.hilamalu.oshixcollector.data.db.TargetAccountEntity
+import com.hilamalu.oshixcollector.data.settings.SecureSettings
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -20,10 +21,12 @@ class FirestoreMirror(
     private val context: Context,
     private val googleAuthManager: GoogleAuthManager
 ) {
-    private val db by lazy { Firebase.firestore }
+    private val secureSettings = SecureSettings(context)
 
-    private fun userDocOrNull() = googleAuthManager.currentUser?.uid?.let { uid ->
-        if (FirebaseAvailability.isConfigured(context)) db.collection("users").document(uid) else null
+    private fun userDocOrNull(): DocumentReference? {
+        val uid = googleAuthManager.currentUser?.uid ?: return null
+        val app = FirebaseAppProvider.getOrNull(context, secureSettings) ?: return null
+        return FirebaseFirestore.getInstance(app).collection("users").document(uid)
     }
 
     suspend fun mirrorTargetAccount(account: TargetAccountEntity) {
@@ -46,7 +49,7 @@ class FirestoreMirror(
         if (assets.isEmpty()) return
         val userDoc = userDocOrNull() ?: return
         runCatching {
-            db.runBatch { batch ->
+            userDoc.firestore.runBatch { batch ->
                 val collection = userDoc.collection("mediaAssets")
                 for (asset in assets) {
                     batch.set(

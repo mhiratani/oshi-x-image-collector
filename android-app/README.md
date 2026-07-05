@@ -31,23 +31,29 @@ cp local.properties.example local.properties
 
 ### 2. クラウドバックアップを使う場合（任意機能）
 
-ローカルでのX画像収集・閲覧だけならこの手順は不要（`google-services.json` が無くてもビルド・実行できる）。クラウドバックアップを使う場合のみ以下を行う。
+ローカルでのX画像収集・閲覧だけならこの手順は不要。クラウドバックアップは**アプリのビルドとは無関係**で、設定画面から値を入力するだけで有効化できる（`google-services.json` のようなビルド時ファイルは使わない）。
+
+以下はFirebaseコンソール側での一度きりの準備（Googleアカウントでの操作が必要なため開発者自身が行う）。
 
 1. [Firebase Console](https://console.firebase.google.com/) で新規プロジェクトを作成
-2. Android アプリを追加（パッケージ名 `com.hilamalu.oshixcollector`）→ `google-services.json` をダウンロードし `android-app/app/google-services.json` に配置（git管理外）
+2. Android アプリを追加（パッケージ名 `com.hilamalu.oshixcollector`）。`google-services.json` はダウンロードしても使わないので破棄してよいが、**SHA-1フィンガープリントはこの時点で登録しておく**（`./gradlew signingReport` で取得できる。Google Sign-Inの信頼済みアプリ判定に使われるため未登録だとサインインに失敗することがある）
 3. Firestore Database を有効化
-4. Authentication → Sign-in method で **Google** を有効化
-5. デバッグ用SHA-1フィンガープリントをFirebaseコンソールのAndroidアプリ設定に登録（`./gradlew signingReport` で取得できる。Google Sign-Inに必須）
-6. Firestore Database > ルール タブに、このリポジトリの `firestore.rules` の内容を貼り付けて公開する
+4. Authentication → Sign-in method で **Google** を有効化 → 表示される「ウェブSDK構成」の**ウェブクライアントID**を控える
+5. Firestore Database > ルール タブに、このリポジトリの `firestore.rules` の内容を貼り付けて公開する
+6. プロジェクトの設定（歯車アイコン）> 全般 タブで、**ウェブAPIキー**・**プロジェクトID**を控える。「マイアプリ」に追加したAndroidアプリの**アプリID**（`1:数字:android:16進数`の形式）も控える
 
-これらが未完了の場合、設定画面で「Firebaseが未設定のため利用できません」と表示され、クラウドバックアップのトグルは機能しない（ローカル収集・閲覧には影響しない）。
+これでコンソール側の準備は完了。あとはアプリの設定画面（下記3.）にこの4つの値（APIキー・プロジェクトID・アプリID・ウェブクライアントID）を入力するだけでよい。同じ値を友人など他の人の端末に入力してもらえば、同じFirebaseプロジェクトに（各自のGoogleアカウントで分離されて）バックアップされる。
+
+未入力の場合、設定画面に「Firebase設定を保存すると、クラウドバックアップが利用できるようになります」と表示され、クラウドバックアップのトグルは機能しない（ローカル収集・閲覧には影響しない）。
 
 ### 3. アプリ内の設定
 
 初回起動後、設定タブで以下を入力する。
 
 - X Bearer Token（X Developer Portalで取得した自分のBearer Token）
-- （クラウドバックアップを使う場合）Cloudflare R2のバケット名・アカウントID・アクセスキーID・シークレットアクセスキー・エンドポイント
+- （クラウドバックアップを使う場合）
+  - Cloudflare R2のバケット名・アカウントID・アクセスキーID・シークレットアクセスキー・エンドポイント
+  - Firebaseの APIキー・プロジェクトID・アプリID・ウェブクライアントID（上記2.で控えた値）→ 保存後、トグルをONにするとGoogleサインイン画面が起動する
 
 ## ビルド
 

@@ -8,7 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hilamalu.oshixcollector.data.MediaRepository
 import com.hilamalu.oshixcollector.data.backup.CloudBackupSettings
-import com.hilamalu.oshixcollector.data.backup.FirebaseAvailability
+import com.hilamalu.oshixcollector.data.backup.FirebaseAppProvider
 import com.hilamalu.oshixcollector.data.backup.GoogleAuthManager
 import com.hilamalu.oshixcollector.data.settings.SecureSettings
 import kotlinx.coroutines.flow.SharingStarted
@@ -22,8 +22,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val googleAuthManager = GoogleAuthManager(application)
     private val repository = MediaRepository(application)
 
-    val isFirebaseConfigured: Boolean = FirebaseAvailability.isConfigured(application)
-
     val cloudBackupEnabled: StateFlow<Boolean> = cloudBackupSettings.isEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
@@ -33,6 +31,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     var r2AccessKeyId by mutableStateOf(secureSettings.r2AccessKeyId.orEmpty())
     var r2SecretAccessKey by mutableStateOf(secureSettings.r2SecretAccessKey.orEmpty())
     var r2Endpoint by mutableStateOf(secureSettings.r2Endpoint.orEmpty())
+
+    var firebaseApiKey by mutableStateOf(secureSettings.firebaseApiKey.orEmpty())
+    var firebaseProjectId by mutableStateOf(secureSettings.firebaseProjectId.orEmpty())
+    var firebaseAppId by mutableStateOf(secureSettings.firebaseAppId.orEmpty())
+    var firebaseWebClientId by mutableStateOf(secureSettings.firebaseWebClientId.orEmpty())
+
+    var isFirebaseConfigured by mutableStateOf(secureSettings.isFirebaseConfigured)
+        private set
 
     var signedInEmail by mutableStateOf(googleAuthManager.currentUser?.email)
         private set
@@ -50,6 +56,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         secureSettings.r2AccessKeyId = r2AccessKeyId.ifBlank { null }
         secureSettings.r2SecretAccessKey = r2SecretAccessKey.ifBlank { null }
         secureSettings.r2Endpoint = r2Endpoint.ifBlank { null }
+
+        val firebaseConfigChanged = secureSettings.firebaseApiKey != firebaseApiKey.ifBlank { null } ||
+            secureSettings.firebaseProjectId != firebaseProjectId.ifBlank { null } ||
+            secureSettings.firebaseAppId != firebaseAppId.ifBlank { null }
+        secureSettings.firebaseApiKey = firebaseApiKey.ifBlank { null }
+        secureSettings.firebaseProjectId = firebaseProjectId.ifBlank { null }
+        secureSettings.firebaseAppId = firebaseAppId.ifBlank { null }
+        secureSettings.firebaseWebClientId = firebaseWebClientId.ifBlank { null }
+        if (firebaseConfigChanged) {
+            // 既存の初期化済みFirebaseAppは古い値を保持し続けるため、次回アクセス時に
+            // 新しい値で再初期化されるようリセットする。
+            FirebaseAppProvider.reset(getApplication<Application>())
+        }
+        isFirebaseConfigured = secureSettings.isFirebaseConfigured
+
         saved = true
     }
 
