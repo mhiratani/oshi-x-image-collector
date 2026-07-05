@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/db';
 import { auth } from '@/auth';
+import { MEDIA_PAGE_SIZE, appendCursorCondition, nextCursorFor } from '@/lib/mediaQuery';
 
 export const dynamic = 'force-dynamic';
-
-const PAGE_SIZE = 60;
 
 // GET /api/media?cursor=<postedAtISO>|<mediaKey>&account=<x_user_id>
 // posted_at 降順のキーセットページネーション（同一ツイート内の複数画像は
@@ -22,13 +21,7 @@ export async function GET(req: NextRequest) {
   const conditions: string[] = ['s.user_email = $1', 'm.revealed'];
   const params: unknown[] = [userEmail];
 
-  if (cursor) {
-    const sep = cursor.lastIndexOf('|');
-    const postedAt = cursor.slice(0, sep);
-    const mediaKey = cursor.slice(sep + 1);
-    params.push(postedAt, mediaKey);
-    conditions.push(`(m.posted_at, m.media_key) < ($${params.length - 1}::timestamptz, $${params.length})`);
-  }
+  appendCursorCondition(conditions, params, cursor);
   if (account) {
     params.push(account);
     conditions.push(`m.x_user_id = $${params.length}`);
@@ -45,20 +38,15 @@ export async function GET(req: NextRequest) {
        JOIN user_subscriptions s ON s.screen_name = a.screen_name
       WHERE ${conditions.join(' AND ')}
       ORDER BY m.posted_at DESC, m.media_key DESC
-      LIMIT ${PAGE_SIZE}`,
+      LIMIT ${MEDIA_PAGE_SIZE}`,
     params
   );
 
-  // 部分ページでもカーソルを返す: バックフィルで古い画像が増えたあと
-  // 同じカーソルから続きを読み込めるようにするため
-  const last = rows[rows.length - 1];
-  const nextCursor = last
-    ? `${new Date(last.posted_at).toISOString()}|${last.media_key}`
-    : null;
-
   return NextResponse.json({
     items: rows,
-    nextCursor,
-    hasMore: rows.length === PAGE_SIZE,
+    // 部分ページでもカーソルを返す: バックフィルで古い画像が増えたあと
+    // 同じカーソルから続きを読み込めるようにするため
+    nextCursor: nextCursorFor(rows),
+    hasMore: rows.length === MEDIA_PAGE_SIZE,
   });
 }

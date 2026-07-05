@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { auth, signOut } from '@/auth';
 import HeaderNav from '@/components/HeaderNav';
-import './globals.css';
+import '../globals.css';
 
 export const metadata: Metadata = {
   title: 'oshi-x-image-collector',

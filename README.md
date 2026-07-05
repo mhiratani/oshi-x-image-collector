@@ -8,6 +8,7 @@ X（Twitter）の指定アカウントから画像を定期収集し、バック
 - `db/init/01_schema.sql` : Postgres スキーマ定義（pgvector拡張を使用）
 - `db/init/02_api_usage.sql` : X API呼び出しのコスト記録テーブル
 - `db/init/03_media_reveal.sql` : cron収集分を「最新を取得」ボタンで公開する仕組み（media_assets.revealed）
+- `db/init/04_share_links.sql` : アカウント単位のログイン不要な共有リンク（share_links）
 
 `docker-compose.yml` には `frontend` サービスしか含まれていません。Postgres はこのリポジトリの管理外で、既存の外部DBサーバーに接続する構成です。
 
@@ -49,12 +50,13 @@ cp .env.example .env
 1. `PG_USER` / `PG_PASSWORD` のユーザー作成
 2. `PG_DB` のデータベース作成
 3. `pgvector` 拡張が使えること（`CREATE EXTENSION vector` が通ること）
-4. `db/init/01_schema.sql`・`db/init/02_api_usage.sql`・`db/init/03_media_reveal.sql` を対象DBに流し込んでテーブルを作成
+4. `db/init/01_schema.sql`・`db/init/02_api_usage.sql`・`db/init/03_media_reveal.sql`・`db/init/04_share_links.sql` を対象DBに流し込んでテーブルを作成
 
 ```
 psql "postgres://<PG_USER>:<PG_PASSWORD>@<PG_HOST>:<PG_PORT>/<PG_DB>" -f db/init/01_schema.sql
 psql "postgres://<PG_USER>:<PG_PASSWORD>@<PG_HOST>:<PG_PORT>/<PG_DB>" -f db/init/02_api_usage.sql
 psql "postgres://<PG_USER>:<PG_PASSWORD>@<PG_HOST>:<PG_PORT>/<PG_DB>" -f db/init/03_media_reveal.sql
+psql "postgres://<PG_USER>:<PG_PASSWORD>@<PG_HOST>:<PG_PORT>/<PG_DB>" -f db/init/04_share_links.sql
 ```
 
 アプリ側にマイグレーション処理は無いため、このSQLを流し忘れるとテーブル未作成・カラム未作成でエラーになる。

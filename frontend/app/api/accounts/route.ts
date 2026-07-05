@@ -4,19 +4,26 @@ import { auth } from '@/auth';
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/accounts — ログインユーザーが推しリストに入れているアカウント一覧（画像数付き）
+// GET /api/accounts — ログインユーザーが推しリストに入れているアカウント一覧
+// （画像数・有効な共有リンクのtoken付き）
 export async function GET() {
   const session = await auth();
   const userEmail = session!.user!.email!;
 
   const { rows } = await pool.query(
     `SELECT a.screen_name, a.x_user_id, a.last_fetched_id, s.created_at,
-            count(m.media_key)::int AS media_count
+            count(m.media_key)::int AS media_count,
+            l.token AS share_token
        FROM user_subscriptions s
        JOIN target_accounts a ON a.screen_name = s.screen_name
        LEFT JOIN media_assets m ON m.x_user_id = a.x_user_id
+       LEFT JOIN LATERAL (
+         SELECT token FROM share_links
+          WHERE screen_name = a.screen_name AND revoked_at IS NULL
+          ORDER BY created_at DESC LIMIT 1
+       ) l ON true
       WHERE s.user_email = $1
-      GROUP BY a.screen_name, a.x_user_id, a.last_fetched_id, s.created_at
+      GROUP BY a.screen_name, a.x_user_id, a.last_fetched_id, s.created_at, l.token
       ORDER BY s.created_at`,
     [userEmail]
   );
