@@ -1,1 +1,4 @@
 /build
+# Firebaseプロジェクト固有の設定ファイル。各自のFirebaseプロジェクトから取得して配置する
+# （android-app/README.md 参照）。プロジェクトIDなどを含むため git 管理外にする。
+/google-services.json

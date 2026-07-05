@@ -1,3 +1,38 @@
 <resources>
     <string name="app_name">推し画像コレクター</string>
+
+    <!-- Navigation -->
+    <string name="nav_media">画像</string>
+    <string name="nav_accounts">アカウント</string>
+    <string name="nav_settings">設定</string>
+
+    <!-- Media List Screen -->
+    <string name="media_refresh">最新を取得</string>
+    <string name="media_empty">画像がまだありません\nアカウントタブから追跡アカウントを追加してください</string>
+
+    <!-- Accounts Screen -->
+    <string name="accounts_add_hint">アカウント名を入力（@なし）</string>
+    <string name="accounts_add">追加</string>
+    <string name="accounts_empty">追跡中のアカウントがありません</string>
+    <string name="accounts_delete">削除</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_x_section">X（Twitter）API</string>
+    <string name="settings_x_bearer_token">Bearer Token</string>
+    <string name="settings_r2_section">Cloudflare R2（クラウド画像バックアップ）</string>
+    <string name="settings_r2_bucket">バケット名</string>
+    <string name="settings_r2_account_id">アカウントID</string>
+    <string name="settings_r2_access_key">アクセスキーID</string>
+    <string name="settings_r2_secret_key">シークレットアクセスキー</string>
+    <string name="settings_r2_endpoint">エンドポイント（https://&lt;ACCOUNT_ID&gt;.r2.cloudflarestorage.com）</string>
+    <string name="settings_cloud_backup_section">クラウドバックアップ</string>
+    <string name="settings_cloud_backup_description">ONにするとGoogleサインインが必要です。画像本体はR2、メタデータはFirestoreへ非同期でバックアップされます（失敗してもローカルの表示には影響しません）。</string>
+    <string name="settings_cloud_backup_firebase_not_configured">Firebaseが未設定のため利用できません（android-app/README.md参照）</string>
+    <string name="settings_cloud_backup_signed_in_as">サインイン中: %1$s</string>
+    <string name="settings_save">保存</string>
+    <string name="settings_saved">保存しました</string>
+    <string name="settings_sign_in_failed">サインインに失敗しました: %1$s</string>
+
+    <!-- Common -->
+    <string name="common_delete">削除</string>
 </resources>

@@ -147,3 +147,22 @@ sequenceDiagram
 - Android⇄クラウド間の同期方式（バックアップ書き込みの失敗時リトライ・キューの設計）。
 - `embedding vector(512)`（CLIPセマンティック検索）は現状未実装・未使用。実装する場合もこの規模ならpgvectorのブルートフォースで十分（OpenSearch等の追加インフラは不要）。
 - Postgres/R2への直接接続はDB・バケットのクレデンシャルを端末（設定画面の入力値、SharedPreferences等）に保持することになるため、保管方法（EncryptedSharedPreferences等）を検討する。
+
+## 5. 更新: クラウドバックアップ方式をFirestoreに変更
+
+3.2節の「AndroidからPostgresへ直接書き込む」は実装段階で以下の理由により変更した（3.2/3.3の記述は経緯として残すが、実装は本節の内容が最新）。
+
+### 変更の経緯
+
+- Android向けの素のPostgresソケット接続に公式対応ドライバが無く、直接書き込みが非現実的と判明。
+- 代替としてMongoDB Atlasを検討したが、AndroidからのDirect Write手段だった**Atlas Device SDK / Device Sync が2025年9月30日付でMongoDB公式によりEOL（提供終了）済み**と判明（Data APIも同時にEOL）。Device Sync自体も現役だった頃から無料枠(M0)非対応で最低M10（有料）が必要だった。
+- 最終的に**Firebase Firestore**（Google公式・現役・Android向けオフラインファーストSDKを標準搭載）を採用。無料枠（Sparkプラン）で個人〜友人共有規模には十分。
+
+### 採用した構成
+
+- ローカル保存は変更なし。**Room（SQLite）が常時・唯一の読み取り経路**（オフラインで完結、Firebaseプロジェクトへの依存なしで動作する）。
+- 「クラウドバックアップ」ON時のみ、Room書き込みと同時に**Firestoreへ非同期・片方向でミラー書き込み**（失敗してもローカルには影響しない）。画像本体は変更なく**Cloudflare R2へ直接PUT**。
+- Firestoreの書き込み先を一意なuidで区別する必要があるため、軽量な**Google Sign-In（Firebase Auth, Credential Manager経由）**を追加した。これはapp_users/user_subscriptions相当のマルチテナント管理（Web版の話）とは別物で、Firestoreセキュリティルールが「本人のデータだけ書ける」を担保するためだけに使う。
+- コレクション構成: `users/{uid}/targetAccounts/{screenName}`, `users/{uid}/mediaAssets/{mediaKey}`（`android-app/firestore.rules` 参照）。
+- 副次効果: 同じGoogleアカウントでWeb側もFirebase Authでログインすれば同一データが見られるため、3.1節が目指した「同一ユーザーの複数クライアント」をPostgres接続文字列の共有より素直な形で満たせる。
+- Web側（Next.js）のPostgresは今回変更していない。Web側もFirestoreへ統一するかは次フェーズで検討する。
