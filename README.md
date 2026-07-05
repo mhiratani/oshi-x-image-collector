@@ -5,13 +5,15 @@ X（Twitter）の指定アカウントから画像を定期収集し、バック
 ## 構成
 
 - `frontend/` : Next.js アプリ（画面 + cronバッチワーカーを同一プロセスで実行）
-- `db/init/01_schema.sql` : Postgres スキーマ定義（pgvector拡張を使用）
-- `db/init/02_api_usage.sql` : X API呼び出しのコスト記録テーブル
-- `db/init/03_media_reveal.sql` : cron収集分を「最新を取得」ボタンで公開する仕組み（media_assets.revealed）
-- `db/init/04_share_links.sql` : アカウント単位のログイン不要な共有リンク（share_links）
+- `frontend/lib/firestore.ts` : Firestore Admin SDK クライアント
+- `frontend/lib/repo/` : Firestoreへのデータアクセス層（テーブル/コレクションごとの読み書き関数群）
+- `docs/web-firestore-migration-design.md` : Postgres → Firestore 移行の設計（コレクション構成・インデックス等）
+- `docs/web-firestore-migration-runbook.md` : 本番環境での移行・切り替え手順（メンテナンス手順・検証チェックリスト・ロールバック手順）
+- `firestore.indexes.json` : Firestoreの複合インデックス定義（`firebase deploy --only firestore:indexes` でデプロイ）
 - `android-app/` : Android版（Kotlin, 新規）。設計は `docs/android-app-design.md` を参照。現状はビルド可能な最小スケルトンのみ（機能未実装）
 
-`docker-compose.yml` には `frontend` サービスしか含まれていません。Postgres はこのリポジトリの管理外で、既存の外部DBサーバーに接続する構成です。
+Web版のデータストアは **Firestore**（旧: 自前ホストのPostgres）。Web版・Android版は同じFirebaseプロジェクトを
+使うことはできるが、コレクション構成が異なるためデータそのものは共有しない（詳細は上記設計書を参照）。
 
 画像バックアップの実体は **Cloudflare R2**（S3互換オブジェクトストレージ）。
 - `frontend/lib/r2.ts` : R2用のS3クライアント（`@aws-sdk/client-s3`）
@@ -26,7 +28,7 @@ X（Twitter）の指定アカウントから画像を定期収集し、バック
 cp .env.example .env
 ```
 
-`.env` の各値（`X_BEARER_TOKEN`, `PG_*`, `AUTH_*`, `OIDC_*`, `CLOUDFLARE_*`）を埋める。
+`.env` の各値（`X_BEARER_TOKEN`, `FIREBASE_*`, `AUTH_*`, `OIDC_*`, `CLOUDFLARE_*`）を埋める。
 
 ### 2. R2の準備（画像バックアップ用）
 
@@ -44,24 +46,35 @@ cp .env.example .env
 
 既存のローカル `backup-storage/` から移行する場合は `frontend/scripts/migrate-backup-to-r2.mjs` を参照（一度きりの移行スクリプト、再実行しても既アップロード分はスキップされる）。
 
-### 3. DBの準備（初回のみ・手動）
+### 3. Firestoreの準備（初回のみ・手動）
 
-このリポジトリはDBコンテナを持たないため、`PG_HOST` が指す既存Postgresに対して事前に以下を用意しておく必要がある。
+このリポジトリはDBコンテナを持たず、Firebase Admin SDK経由でFirestoreに接続する構成。
 
-1. `PG_USER` / `PG_PASSWORD` のユーザー作成
-2. `PG_DB` のデータベース作成
-3. `pgvector` 拡張が使えること（`CREATE EXTENSION vector` が通ること）
-4. `db/init/01_schema.sql`・`db/init/02_api_usage.sql`・`db/init/03_media_reveal.sql`・`db/init/04_share_links.sql` を対象DBに流し込んでテーブルを作成
+1. [Firebaseコンソール](https://console.firebase.google.com/)でプロジェクトを新規作成（Firestoreを有効化しておく）
+2. プロジェクトの設定 → サービスアカウント → 「新しい秘密鍵の生成」でJSONをダウンロード
+3. JSON内の`project_id`/`client_email`/`private_key`を`.env`の`FIREBASE_PROJECT_ID`/`FIREBASE_CLIENT_EMAIL`/`FIREBASE_PRIVATE_KEY`に転記する
+   （`private_key`は改行を`\n`にエスケープした1行文字列として保存する）
+4. 複合インデックスを作成する（`firestore.indexes.json`にまとめてある）
 
 ```
-psql "postgres://<PG_USER>:<PG_PASSWORD>@<PG_HOST>:<PG_PORT>/<PG_DB>" -f db/init/01_schema.sql
-psql "postgres://<PG_USER>:<PG_PASSWORD>@<PG_HOST>:<PG_PORT>/<PG_DB>" -f db/init/02_api_usage.sql
-psql "postgres://<PG_USER>:<PG_PASSWORD>@<PG_HOST>:<PG_PORT>/<PG_DB>" -f db/init/03_media_reveal.sql
-psql "postgres://<PG_USER>:<PG_PASSWORD>@<PG_HOST>:<PG_PORT>/<PG_DB>" -f db/init/04_share_links.sql
+npm install -g firebase-tools
+firebase login
+firebase deploy --only firestore:indexes --project <FIREBASE_PROJECT_ID>
 ```
 
-アプリ側にマイグレーション処理は無いため、このSQLを流し忘れるとテーブル未作成・カラム未作成でエラーになる。
-既存環境をアップデートする場合は、まだ流していない番号のファイルだけ追加で流せばよい（`01_schema.sql`は再実行しても`IF NOT EXISTS`のため無害）。
+コレクション構成・インデックス一覧の詳細は `docs/web-firestore-migration-design.md` を参照。
+
+既存のPostgres環境からデータを移す場合は `frontend/scripts/migrate-postgres-to-firestore.mjs` を使う
+（一度きりの移行スクリプト。`.env`に旧`PG_*`と新`FIREBASE_*`の両方を設定した状態で実行する。
+再実行しても主キーをそのままドキュメントIDに使うため上書きになるだけで安全）。
+
+```
+docker build --target builder -t oshi-migrate ./frontend
+docker run --rm --env-file .env oshi-migrate node scripts/migrate-postgres-to-firestore.mjs
+```
+
+本番環境を実際に切り替える場合は、cronの停止・移行・検証・ロールバック手順まで含めた
+`docs/web-firestore-migration-runbook.md` の手順に沿って行うこと。
 
 ### 4. 起動
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
 import { auth } from '@/auth';
+import * as media from '@/lib/repo/media';
+import { getSubscribedXUserIds } from '@/lib/repo/userAccounts';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,20 +20,12 @@ export async function PATCH(
     return NextResponse.json({ error: 'isFace(boolean)が必要です' }, { status: 400 });
   }
 
-  const { rows } = await pool.query(
-    `UPDATE media_assets m
-        SET is_face = $1, face_reviewed = true
-       FROM target_accounts a
-       JOIN user_subscriptions s ON s.screen_name = a.screen_name
-      WHERE m.x_user_id = a.x_user_id
-        AND m.media_key = $2
-        AND s.user_email = $3
-      RETURNING m.media_key`,
-    [body.isFace, params.mediaKey, userEmail]
-  );
-
-  if (rows.length === 0) {
+  const target = await media.getMedia(params.mediaKey);
+  const allowedXUserIds = await getSubscribedXUserIds(userEmail);
+  if (!target || !allowedXUserIds.includes(target.x_user_id)) {
     return NextResponse.json({ error: '対象が見つかりません' }, { status: 404 });
   }
+
+  await media.updateFace(params.mediaKey, body.isFace);
   return NextResponse.json({ ok: true });
 }

@@ -5,7 +5,9 @@ services:
     build: ./frontend
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgres://${PG_USER:?PG_USER を .env に設定してください}:${PG_PASSWORD}@${PG_HOST:?PG_HOST を .env に設定してください}:${PG_PORT:?PG_PORT を .env に設定してください}/${PG_DB:-oshi}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:?FIREBASE_PROJECT_ID を .env に設定してください}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:?FIREBASE_CLIENT_EMAIL を .env に設定してください}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:?FIREBASE_PRIVATE_KEY を .env に設定してください}
       X_BEARER_TOKEN: ${X_BEARER_TOKEN:?X_BEARER_TOKEN を .env に設定してください}
       # バッチ実行スケジュール（cron形式、デフォルト: 60分ごとの新着チェック）
       CRON_SCHEDULE: "*/60 * * * *"

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
 import { auth } from '@/auth';
+import * as targetAccounts from '@/lib/repo/targetAccounts';
+import * as subscriptions from '@/lib/repo/subscriptions';
+import * as media from '@/lib/repo/media';
+import * as shareLinks from '@/lib/repo/shareLinks';
+import { getSubscribedAccounts } from '@/lib/repo/userAccounts';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,22 +14,16 @@ export async function GET() {
   const session = await auth();
   const userEmail = session!.user!.email!;
 
-  const { rows } = await pool.query(
-    `SELECT a.screen_name, a.x_user_id, a.last_fetched_id, s.created_at,
-            count(m.media_key)::int AS media_count,
-            l.token AS share_token
-       FROM user_subscriptions s
-       JOIN target_accounts a ON a.screen_name = s.screen_name
-       LEFT JOIN media_assets m ON m.x_user_id = a.x_user_id
-       LEFT JOIN LATERAL (
-         SELECT token FROM share_links
-          WHERE screen_name = a.screen_name AND revoked_at IS NULL
-          ORDER BY created_at DESC LIMIT 1
-       ) l ON true
-      WHERE s.user_email = $1
-      GROUP BY a.screen_name, a.x_user_id, a.last_fetched_id, s.created_at, l.token
-      ORDER BY s.created_at`,
-    [userEmail]
+  const accounts = await getSubscribedAccounts(userEmail);
+  const rows = await Promise.all(
+    accounts.map(async (a) => ({
+      screen_name: a.screen_name,
+      x_user_id: a.x_user_id,
+      last_fetched_id: a.last_fetched_id,
+      created_at: a.subscribed_at,
+      media_count: a.x_user_id ? await media.countForXUserId(a.x_user_id) : 0,
+      share_token: await shareLinks.findActiveToken(a.screen_name),
+    }))
   );
   return NextResponse.json({ accounts: rows });
 }
@@ -48,16 +46,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  await pool.query(
-    `INSERT INTO target_accounts (screen_name) VALUES ($1)
-     ON CONFLICT (screen_name) DO NOTHING`,
-    [screenName]
-  );
-  await pool.query(
-    `INSERT INTO user_subscriptions (user_email, screen_name) VALUES ($1, $2)
-     ON CONFLICT (user_email, screen_name) DO NOTHING`,
-    [userEmail, screenName]
-  );
+  await targetAccounts.createIfNotExists(screenName);
+  await subscriptions.addSubscription(userEmail, screenName);
   return NextResponse.json({ ok: true, screenName });
 }
 
@@ -73,16 +63,10 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'screenName は必須です' }, { status: 400 });
   }
 
-  await pool.query(
-    `DELETE FROM user_subscriptions WHERE user_email = $1 AND screen_name = $2`,
-    [userEmail, screenName]
-  );
-  const { rows } = await pool.query(
-    `SELECT count(*)::int AS remaining FROM user_subscriptions WHERE screen_name = $1`,
-    [screenName]
-  );
-  if (rows[0].remaining === 0) {
-    await pool.query(`DELETE FROM target_accounts WHERE screen_name = $1`, [screenName]);
+  await subscriptions.removeSubscription(userEmail, screenName);
+  const remaining = await subscriptions.countSubscribers(screenName);
+  if (remaining === 0) {
+    await targetAccounts.deleteCascade(screenName);
   }
   return NextResponse.json({ ok: true });
 }

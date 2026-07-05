@@ -1,5 +1,5 @@
 // X API v2 クライアント（Bearer Token 認証）
-import { pool } from '@/lib/db';
+import { logUsage as logUsageToFirestore } from '@/lib/repo/apiUsage';
 
 const API_BASE = 'https://api.twitter.com/2';
 
@@ -17,11 +17,14 @@ const UNIT_COST_USD = {
 async function logUsage({ purpose, endpoint, screenName, resource, quantity }) {
   const unitCost = UNIT_COST_USD[resource];
   try {
-    await pool.query(
-      `INSERT INTO api_usage_log (purpose, endpoint, screen_name, resource, quantity, unit_cost_usd, cost_usd)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [purpose, endpoint, screenName ?? null, resource, quantity, unitCost, quantity * unitCost]
-    );
+    await logUsageToFirestore({
+      purpose,
+      endpoint,
+      screenName: screenName ?? null,
+      resource,
+      quantity,
+      unitCostUsd: unitCost,
+    });
   } catch (err) {
     console.error(`[usage] failed to log ${purpose}/${endpoint}: ${err.message}`);
   }

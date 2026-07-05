@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
 import { auth } from '@/auth';
+import { revealAll } from '@/lib/repo/media';
+import { getSubscribedXUserIds } from '@/lib/repo/userAccounts';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,17 +11,7 @@ export async function POST() {
   const session = await auth();
   const userEmail = session!.user!.email!;
 
-  await pool.query(
-    `UPDATE media_assets
-        SET revealed = true
-      WHERE NOT revealed
-        AND x_user_id IN (
-          SELECT a.x_user_id
-            FROM target_accounts a
-            JOIN user_subscriptions s ON s.screen_name = a.screen_name
-           WHERE s.user_email = $1
-        )`,
-    [userEmail]
-  );
+  const xUserIds = await getSubscribedXUserIds(userEmail);
+  await revealAll(xUserIds);
   return NextResponse.json({ ok: true });
 }

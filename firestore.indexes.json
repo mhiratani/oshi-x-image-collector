@@ -1,0 +1,85 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "media_assets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "x_user_id", "order": "ASCENDING" },
+        { "fieldPath": "revealed", "order": "ASCENDING" },
+        { "fieldPath": "posted_at", "order": "DESCENDING" },
+        { "fieldPath": "media_key", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "media_assets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "x_user_id", "order": "ASCENDING" },
+        { "fieldPath": "revealed", "order": "ASCENDING" },
+        { "fieldPath": "is_face", "order": "ASCENDING" },
+        { "fieldPath": "posted_at", "order": "DESCENDING" },
+        { "fieldPath": "media_key", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "media_assets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "backed_up", "order": "ASCENDING" },
+        { "fieldPath": "posted_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "media_assets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "backed_up", "order": "ASCENDING" },
+        { "fieldPath": "is_face", "order": "ASCENDING" },
+        { "fieldPath": "face_reviewed", "order": "ASCENDING" },
+        { "fieldPath": "posted_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "media_assets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "x_user_id", "order": "ASCENDING" },
+        { "fieldPath": "posted_at", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "target_accounts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "x_user_id", "order": "ASCENDING" },
+        { "fieldPath": "backfill_done", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "share_links",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "screen_name", "order": "ASCENDING" },
+        { "fieldPath": "revoked_at", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "user_subscriptions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "user_email", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "api_usage_log",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "purpose", "order": "ASCENDING" },
+        { "fieldPath": "called_at", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
