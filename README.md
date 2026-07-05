@@ -8,6 +8,7 @@ X（Twitter）の指定アカウントから画像を定期収集し、バック
 - `frontend/lib/firestore.ts` : Firestore Admin SDK クライアント
 - `frontend/lib/repo/` : Firestoreへのデータアクセス層（テーブル/コレクションごとの読み書き関数群）
 - `docs/web-firestore-migration-design.md` : Postgres → Firestore 移行の設計（コレクション構成・インデックス等）
+- `docs/web-firestore-migration-runbook.md` : 本番環境での移行・切り替え手順（メンテナンス手順・検証チェックリスト・ロールバック手順）
 - `firestore.indexes.json` : Firestoreの複合インデックス定義（`firebase deploy --only firestore:indexes` でデプロイ）
 - `android-app/` : Android版（Kotlin, 新規）。設計は `docs/android-app-design.md` を参照。現状はビルド可能な最小スケルトンのみ（機能未実装）
 
@@ -71,6 +72,9 @@ firebase deploy --only firestore:indexes --project <FIREBASE_PROJECT_ID>
 docker build --target builder -t oshi-migrate ./frontend
 docker run --rm --env-file .env oshi-migrate node scripts/migrate-postgres-to-firestore.mjs
 ```
+
+本番環境を実際に切り替える場合は、cronの停止・移行・検証・ロールバック手順まで含めた
+`docs/web-firestore-migration-runbook.md` の手順に沿って行うこと。
 
 ### 4. 起動
 
