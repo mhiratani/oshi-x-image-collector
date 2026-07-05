@@ -55,7 +55,7 @@ export default function GalleryPage() {
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [filter, setFilter] = useState<string | null>(null);
+  const [filter, setFilter] = useState<string[]>([]);
   const [faceOnly, setFaceOnly] = useState(false);
   const [selected, setSelected] = useState<MediaItem | null>(null);
   const [backfill, setBackfill] = useState<BackfillStatus>({
@@ -71,6 +71,9 @@ export default function GalleryPage() {
   const [revealing, setRevealing] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
+  // バックフィルはアカウント単位の操作のため、1件だけ絞り込み中のときだけそのアカウントを対象にする
+  const backfillAccount = filter.length === 1 ? filter[0] : undefined;
+
   const loadMore = useCallback(
     async (reset = false) => {
       if (loading) return;
@@ -78,7 +81,7 @@ export default function GalleryPage() {
       try {
         const params = new URLSearchParams();
         if (!reset && cursor) params.set('cursor', cursor);
-        if (filter) params.set('account', filter);
+        if (filter.length > 0) params.set('account', filter.join(','));
         if (faceOnly) params.set('faceOnly', 'true');
         const res = await fetch(`/api/media?${params}`);
         const json = await res.json();
@@ -118,7 +121,7 @@ export default function GalleryPage() {
   // 絞り込みユーザーが変わるたびに、そのユーザーのバックフィル状況を取り直す
   useEffect(() => {
     const params = new URLSearchParams();
-    if (filter) params.set('account', filter);
+    if (backfillAccount) params.set('account', backfillAccount);
     fetch(`/api/backfill?${params}`)
       .then((r) => r.json())
       .then(setBackfill)
@@ -196,20 +199,20 @@ export default function GalleryPage() {
   };
 
   // 「過去を読み込む」: ワーカーのバックフィルを起動し、完了を待って続きを表示
-  // ユーザーを絞り込み中の場合はそのアカウントだけを対象にする
+  // ユーザーを1件だけ絞り込み中の場合はそのアカウントだけを対象にする
   const startBackfill = async () => {
     setBackfilling(true);
     const res = await fetch('/api/backfill', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ account: filter }),
+      body: JSON.stringify({ account: backfillAccount }),
     }).catch(() => null);
     if (!res || (!res.ok && res.status !== 409)) {
       setBackfilling(false);
       return;
     }
     const params = new URLSearchParams();
-    if (filter) params.set('account', filter);
+    if (backfillAccount) params.set('account', backfillAccount);
     const timer = setInterval(async () => {
       const s: BackfillStatus | null = await fetch(`/api/backfill?${params}`)
         .then((r) => r.json())
@@ -271,8 +274,8 @@ export default function GalleryPage() {
       )}
       <div className="toolbar">
         <button
-          className={`chip ${filter === null ? 'active' : ''}`}
-          onClick={() => setFilter(null)}
+          className={`chip ${filter.length === 0 ? 'active' : ''}`}
+          onClick={() => setFilter([])}
         >
           すべて
         </button>
@@ -281,8 +284,14 @@ export default function GalleryPage() {
           .map((a) => (
             <button
               key={a.screen_name}
-              className={`chip ${filter === a.x_user_id ? 'active' : ''}`}
-              onClick={() => setFilter(a.x_user_id)}
+              className={`chip ${filter.includes(a.x_user_id!) ? 'active' : ''}`}
+              onClick={() =>
+                setFilter((prev) =>
+                  prev.includes(a.x_user_id!)
+                    ? prev.filter((id) => id !== a.x_user_id)
+                    : [...prev, a.x_user_id!]
+                )
+              }
             >
               @{a.screen_name} ({a.media_count})
             </button>
@@ -307,7 +316,7 @@ export default function GalleryPage() {
               r2BackupUrl={item.r2_backup_url}
               altText={`@${item.screen_name ?? item.x_user_id} の画像`}
             />
-            {!filter && item.screen_name && <span className="badge">@{item.screen_name}</span>}
+            {filter.length !== 1 && item.screen_name && <span className="badge">@{item.screen_name}</span>}
           </button>
         ))}
       </div>
@@ -325,6 +334,8 @@ export default function GalleryPage() {
           <div style={{ marginTop: 12 }}>
             {backfilling || backfill.running ? (
               <p>🕰 X APIから過去の投稿を取得中…（最大500ツイート分・1分ほどかかります）</p>
+            ) : filter.length > 1 ? (
+              <p>複数アカウントを選択中は過去の投稿を読み込めません。1つに絞り込んでください。</p>
             ) : backfill.allDone ? (
               accounts.length > 0 && <p>これ以上遡れる過去の投稿はありません</p>
             ) : (

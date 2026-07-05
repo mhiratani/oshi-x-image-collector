@@ -15,16 +15,16 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = req.nextUrl;
   const cursor = searchParams.get('cursor');
-  const account = searchParams.get('account');
+  const accounts = searchParams.get('account')?.split(',').filter(Boolean) ?? [];
   const faceOnly = searchParams.get('faceOnly') === 'true';
 
   const conditions: string[] = ['s.user_email = $1', 'm.revealed'];
   const params: unknown[] = [userEmail];
 
   appendCursorCondition(conditions, params, cursor);
-  if (account) {
-    params.push(account);
-    conditions.push(`m.x_user_id = $${params.length}`);
+  if (accounts.length > 0) {
+    params.push(accounts);
+    conditions.push(`m.x_user_id = ANY($${params.length}::text[])`);
   }
   if (faceOnly) {
     conditions.push(`m.is_face = true`);
