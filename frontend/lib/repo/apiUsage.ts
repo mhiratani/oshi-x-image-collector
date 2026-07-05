@@ -1,7 +1,7 @@
 import { db } from '@/lib/firestore';
 import { AggregateField, FieldValue, Timestamp } from 'firebase-admin/firestore';
 
-const col = db.collection('api_usage_log');
+const col = () => db.collection('api_usage_log');
 
 const PURPOSES = ['resolve', 'check', 'collect', 'backfill'] as const;
 
@@ -13,7 +13,7 @@ export async function logUsage(entry: {
   quantity: number;
   unitCostUsd: number;
 }): Promise<void> {
-  await col.add({
+  await col().add({
     called_at: FieldValue.serverTimestamp(),
     purpose: entry.purpose,
     endpoint: entry.endpoint,
@@ -73,12 +73,12 @@ export async function getUsageStats(): Promise<UsageStats> {
   const twelveMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1));
 
   const [allTimeAgg, todayAgg, monthAgg, recentSnap, rangeSnap, ...byPurposeAgg] = await Promise.all([
-    col.aggregate({ cost: AggregateField.sum('cost_usd') }).get(),
-    col
+    col().aggregate({ cost: AggregateField.sum('cost_usd') }).get(),
+    col()
       .where('called_at', '>=', Timestamp.fromDate(todayStart))
       .aggregate({ cost: AggregateField.sum('cost_usd') })
       .get(),
-    col
+    col()
       .where('called_at', '>=', Timestamp.fromDate(monthStart))
       .aggregate({
         cost: AggregateField.sum('cost_usd'),
@@ -86,10 +86,10 @@ export async function getUsageStats(): Promise<UsageStats> {
         calls: AggregateField.count(),
       })
       .get(),
-    col.orderBy('called_at', 'desc').limit(50).get(),
-    col.where('called_at', '>=', Timestamp.fromDate(twelveMonthsAgo)).orderBy('called_at', 'asc').get(),
+    col().orderBy('called_at', 'desc').limit(50).get(),
+    col().where('called_at', '>=', Timestamp.fromDate(twelveMonthsAgo)).orderBy('called_at', 'asc').get(),
     ...PURPOSES.map((purpose) =>
-      col
+      col()
         .where('called_at', '>=', Timestamp.fromDate(monthStart))
         .where('purpose', '==', purpose)
         .aggregate({
