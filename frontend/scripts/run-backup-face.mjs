@@ -5,7 +5,8 @@
 // 実行方法（リポジトリルートで、既存の frontend イメージをそのまま使い回す）:
 //   docker run --rm --env-file .env   -v "$(pwd)/frontend/scripts:/app/scripts:ro"   -w /app   oshi-backup-face-tmp node scripts/run-backup-face.mjs
 //
-import { Pool } from 'pg';
+import { cert, initializeApp } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import sharp from 'sharp';
 import * as tf from '@tensorflow/tfjs';
@@ -25,13 +26,15 @@ const CONTENT_TYPES = {
   webp: 'image/webp',
 };
 
-// docker-compose.yml と同じ組み立て。DATABASE_URL が無ければ PG_* から構築する
-const DATABASE_URL =
-  process.env.DATABASE_URL ??
-  (process.env.PG_HOST &&
-    `postgres://${process.env.PG_USER}:${process.env.PG_PASSWORD}@${process.env.PG_HOST}:${process.env.PG_PORT}/${process.env.PG_DB ?? 'oshi'}`);
-
-const pool = new Pool({ connectionString: DATABASE_URL, max: 5 });
+initializeApp({
+  credential: cert({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  }),
+});
+const db = getFirestore();
+const mediaAssets = db.collection('media_assets');
 
 const r2 = new S3Client({
   region: 'auto',
@@ -80,29 +83,27 @@ async function backupOne({ media_key, x_user_id, x_cdn_url }) {
 }
 
 async function backupPending(batchSize) {
-  const { rows } = await pool.query(
-    `SELECT media_key, x_user_id, x_cdn_url
-       FROM media_assets
-      WHERE r2_backup_url IS NULL AND backup_attempts < $1
-      ORDER BY posted_at DESC
-      LIMIT $2`,
-    [MAX_ATTEMPTS, batchSize]
-  );
+  // Firestoreは複数フィールドにまたがる不等号フィルタを扱えないため、backed_up==falseで
+  // 多めに取得してから backup_attempts の上限判定だけJS側で行う（worker/media.jsと同じ方式）
+  const snap = await mediaAssets
+    .where('backed_up', '==', false)
+    .orderBy('posted_at', 'desc')
+    .limit(batchSize * 3)
+    .get();
+  const rows = snap.docs
+    .map((d) => d.data())
+    .filter((row) => (row.backup_attempts ?? 0) < MAX_ATTEMPTS)
+    .slice(0, batchSize);
 
   let ok = 0;
   for (const row of rows) {
     try {
       const relativeUrl = await backupOne(row);
-      await pool.query(`UPDATE media_assets SET r2_backup_url = $1 WHERE media_key = $2`, [
-        relativeUrl,
-        row.media_key,
-      ]);
+      await mediaAssets.doc(row.media_key).update({ r2_backup_url: relativeUrl, backed_up: true });
       ok++;
     } catch (err) {
       console.warn(`[backup] failed ${row.media_key}: ${err.message}`);
-      await pool.query(`UPDATE media_assets SET backup_attempts = backup_attempts + 1 WHERE media_key = $1`, [
-        row.media_key,
-      ]);
+      await mediaAssets.doc(row.media_key).update({ backup_attempts: FieldValue.increment(1) });
     }
   }
   console.log(`[backup] ${ok}/${rows.length} images backed up`);
@@ -141,14 +142,14 @@ async function detectOne(model, r2BackupUrl) {
 }
 
 async function detectFaces(batchSize) {
-  const { rows } = await pool.query(
-    `SELECT media_key, r2_backup_url
-       FROM media_assets
-      WHERE r2_backup_url IS NOT NULL AND is_face IS NULL AND NOT face_reviewed
-      ORDER BY posted_at DESC
-      LIMIT $1`,
-    [batchSize]
-  );
+  const snap = await mediaAssets
+    .where('backed_up', '==', true)
+    .where('is_face', '==', null)
+    .where('face_reviewed', '==', false)
+    .orderBy('posted_at', 'desc')
+    .limit(batchSize)
+    .get();
+  const rows = snap.docs.map((d) => d.data());
   if (rows.length === 0) {
     console.log('[face] nothing to detect');
     return 0;
@@ -159,11 +160,7 @@ async function detectFaces(batchSize) {
   for (const row of rows) {
     try {
       const { isFace, confidence } = await detectOne(model, row.r2_backup_url);
-      await pool.query(`UPDATE media_assets SET is_face = $1, face_confidence = $2 WHERE media_key = $3`, [
-        isFace,
-        confidence,
-        row.media_key,
-      ]);
+      await mediaAssets.doc(row.media_key).update({ is_face: isFace, face_confidence: confidence });
       ok++;
     } catch (err) {
       console.warn(`[face] failed ${row.media_key}: ${err.message}`);
@@ -174,12 +171,11 @@ async function detectFaces(batchSize) {
 }
 
 async function main() {
-  if (!DATABASE_URL) throw new Error('DATABASE_URL (または PG_HOST 等) が未設定です');
+  if (!process.env.FIREBASE_PROJECT_ID) throw new Error('FIREBASE_PROJECT_ID が未設定です');
   if (!BUCKET) throw new Error('CLOUDFLARE_R2_BUCKET_NAME が未設定です');
 
   await backupPending(BACKUP_BATCH_SIZE);
   await detectFaces(FACE_BATCH_SIZE);
-  await pool.end();
 }
 
 main().catch((err) => {

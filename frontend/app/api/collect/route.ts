@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
 import { auth } from '@/auth';
 import { workerState } from '@/worker/state.js';
 import { runCollectOnce } from '@/worker/batch.js';
+import { getSubscribedAccounts } from '@/lib/repo/userAccounts';
+import { countUnrevealed } from '@/lib/repo/media';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,29 +12,18 @@ export async function GET() {
   const session = await auth();
   const userEmail = session!.user!.email!;
 
-  const pending = await pool.query(
-    `SELECT
-       (SELECT count(*)::int
-          FROM media_assets m
-          JOIN target_accounts a ON a.x_user_id = m.x_user_id
-          JOIN user_subscriptions s ON s.screen_name = a.screen_name
-         WHERE s.user_email = $1 AND NOT m.revealed) AS total,
-       (SELECT count(*)::int
-          FROM user_subscriptions s
-          JOIN target_accounts a ON a.screen_name = s.screen_name
-         WHERE s.user_email = $1 AND a.x_user_id IS NOT NULL AND a.last_fetched_id IS NULL) AS needs_initial,
-       (SELECT count(*)::int
-          FROM user_subscriptions s
-          JOIN target_accounts a ON a.screen_name = s.screen_name
-         WHERE s.user_email = $1 AND a.x_user_id IS NULL) AS unresolved`,
-    [userEmail]
-  );
-  const row = pending.rows[0];
+  const accounts = await getSubscribedAccounts(userEmail);
+  const resolvedXUserIds = accounts.map((a) => a.x_user_id).filter((id): id is string => id !== null);
+
+  const totalPending = await countUnrevealed(resolvedXUserIds);
+  const needsInitial = accounts.filter((a) => a.x_user_id !== null && a.last_fetched_id === null).length;
+  const unresolved = accounts.filter((a) => a.x_user_id === null).length;
+
   return NextResponse.json({
     running: workerState.running,
-    totalPending: row.total, // cronが取得済みだが未公開(revealed=false)の件数
-    needsInitial: row.needs_initial, // ID解決済みだが初回クロール未実行
-    unresolved: row.unresolved, // screen_name 登録直後でID未解決
+    totalPending, // cronが取得済みだが未公開(revealed=false)の件数
+    needsInitial, // ID解決済みだが初回クロール未実行
+    unresolved, // screen_name 登録直後でID未解決
     lastError: workerState.lastError,
   });
 }

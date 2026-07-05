@@ -3,3 +3,5 @@
 node_modules/
 .next/
 backup-data/
+frontend/tsconfig.tsbuildinfo
+frontend/firestore-debug.log

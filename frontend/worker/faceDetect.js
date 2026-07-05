@@ -6,6 +6,7 @@ import * as tf from '@tensorflow/tfjs';
 import * as blazeface from '@tensorflow-models/blazeface';
 import sharp from 'sharp';
 import { getObjectBuffer } from '@/lib/r2';
+import { listPendingFaceDetection, markFaceResult } from '@/lib/repo/media';
 
 const INPUT_SIZE = 256;
 
@@ -42,15 +43,8 @@ async function detectOne(model, r2BackupUrl) {
 }
 
 // 未判定(is_face IS NULL)かつバックアップ済み、かつ手動レビュー未実施の画像を判定する
-export async function detectFaces(pool, batchSize) {
-  const { rows } = await pool.query(
-    `SELECT media_key, r2_backup_url
-       FROM media_assets
-      WHERE r2_backup_url IS NOT NULL AND is_face IS NULL AND NOT face_reviewed
-      ORDER BY posted_at DESC
-      LIMIT $1`,
-    [batchSize]
-  );
+export async function detectFaces(batchSize) {
+  const rows = await listPendingFaceDetection(batchSize);
   if (rows.length === 0) return 0;
 
   const model = await getModel();
@@ -58,10 +52,7 @@ export async function detectFaces(pool, batchSize) {
   for (const row of rows) {
     try {
       const { isFace, confidence } = await detectOne(model, row.r2_backup_url);
-      await pool.query(
-        `UPDATE media_assets SET is_face = $1, face_confidence = $2 WHERE media_key = $3`,
-        [isFace, confidence, row.media_key]
-      );
+      await markFaceResult(row.media_key, isFace, confidence);
       ok++;
     } catch (err) {
       console.warn(`[face] failed ${row.media_key}: ${err.message}`);

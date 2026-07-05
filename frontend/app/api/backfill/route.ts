@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { pool } from '@/lib/db';
 import { auth } from '@/auth';
 import { workerState } from '@/worker/state.js';
 import { runBackfillOnce } from '@/worker/batch.js';
+import { getSubscribedAccounts } from '@/lib/repo/userAccounts';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,17 +14,15 @@ export async function GET(req: Request) {
   const userEmail = session!.user!.email!;
   const account = new URL(req.url).searchParams.get('account');
 
-  const done = await pool.query(
-    `SELECT count(*) FILTER (WHERE NOT a.backfill_done)::int AS remaining
-       FROM user_subscriptions s
-       JOIN target_accounts a ON a.screen_name = s.screen_name
-      WHERE s.user_email = $1 AND a.x_user_id IS NOT NULL
-        AND ($2::text IS NULL OR a.x_user_id = $2)`,
-    [userEmail, account]
+  const accounts = await getSubscribedAccounts(userEmail);
+  const resolved = accounts.filter(
+    (a) => a.x_user_id !== null && (!account || a.x_user_id === account)
   );
+  const remaining = resolved.filter((a) => !a.backfill_done).length;
+
   return NextResponse.json({
     running: workerState.running,
-    allDone: done.rows[0].remaining === 0,
+    allDone: remaining === 0,
     lastError: workerState.lastError,
     progress: workerState.backfillProgress,
   });

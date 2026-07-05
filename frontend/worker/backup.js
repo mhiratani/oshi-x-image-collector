@@ -2,6 +2,7 @@
 // 配信は app/backups/[...path]/route.ts の専用ハンドラが R2 から都度取得して行う。
 import sharp from 'sharp';
 import { putObject } from '@/lib/r2';
+import { listPendingBackup, markBackedUp, markBackupFailed } from '@/lib/repo/media';
 
 const CONTENT_TYPES = {
   jpg: 'image/jpeg',
@@ -11,35 +12,21 @@ const CONTENT_TYPES = {
   webp: 'image/webp',
 };
 
-const MAX_ATTEMPTS = 5;
 const THUMB_MAX_SIZE = 400;
 
 // r2_backup_url が未設定のレコードをバッチでバックアップ
-export async function backupPending(pool, batchSize) {
-  const { rows } = await pool.query(
-    `SELECT media_key, x_user_id, x_cdn_url
-       FROM media_assets
-      WHERE r2_backup_url IS NULL AND backup_attempts < $1
-      ORDER BY posted_at DESC
-      LIMIT $2`,
-    [MAX_ATTEMPTS, batchSize]
-  );
+export async function backupPending(batchSize) {
+  const rows = await listPendingBackup(batchSize);
 
   let ok = 0;
   for (const row of rows) {
     try {
       const relativeUrl = await backupOne(row);
-      await pool.query(
-        `UPDATE media_assets SET r2_backup_url = $1 WHERE media_key = $2`,
-        [relativeUrl, row.media_key]
-      );
+      await markBackedUp(row.media_key, relativeUrl);
       ok++;
     } catch (err) {
       console.warn(`[backup] failed ${row.media_key}: ${err.message}`);
-      await pool.query(
-        `UPDATE media_assets SET backup_attempts = backup_attempts + 1 WHERE media_key = $1`,
-        [row.media_key]
-      );
+      await markBackupFailed(row.media_key);
     }
   }
   if (rows.length > 0) {
