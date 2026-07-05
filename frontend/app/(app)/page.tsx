@@ -24,6 +24,7 @@ type BackfillStatus = {
   running: boolean;
   allDone: boolean;
   lastError?: string | null;
+  progress?: { done: number; total: number };
 };
 
 type CollectStatus = {
@@ -333,7 +334,12 @@ export default function GalleryPage() {
         {!loading && !hasMore && (
           <div style={{ marginTop: 12 }}>
             {backfilling || backfill.running ? (
-              <p>🕰 X APIから過去の投稿を取得中…（最大500ツイート分・1分ほどかかります）</p>
+              <p>
+                🕰 X APIから過去の投稿を取得中…
+                {backfill.progress && backfill.progress.total > 0
+                  ? `（${backfill.progress.done}/${backfill.progress.total}件取得中）`
+                  : '（集計中…）'}
+              </p>
             ) : filter.length > 1 ? (
               <p>複数アカウントを選択中は過去の投稿を読み込めません。1つに絞り込んでください。</p>
             ) : backfill.allDone ? (

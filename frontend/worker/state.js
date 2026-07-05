@@ -4,6 +4,6 @@ const globalForWorker = globalThis;
 
 export const workerState =
   globalForWorker.oshiWorkerState ??
-  { running: false, lastError: null };
+  { running: false, lastError: null, backfillProgress: { done: 0, total: 0 } };
 
 globalForWorker.oshiWorkerState = workerState;

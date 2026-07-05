@@ -27,6 +27,7 @@ export async function runBatch() {
   }
   workerState.running = true;
   workerState.lastError = null;
+  workerState.backfillProgress = { done: 0, total: 0 };
   console.log(`[batch] start ${new Date().toISOString()}`);
   try {
     // cronで新着を実際に取得・保存まで行う（画面には revealed=false のため出さない）。
@@ -153,6 +154,10 @@ async function backfillAllAccounts(xUserId) {
     [xUserId ?? null]
   );
 
+  // 画面に「◯/◯件取得中」を出すための目安。実際にはアカウントごとに
+  // 遡り切って途中で終わることもあるため、あくまで上限値
+  workerState.backfillProgress = { done: 0, total: accounts.length * BACKFILL_PAGES * 100 };
+
   for (const account of accounts) {
     try {
       // 旧バージョンで収集済みなどで cursor が無い場合は保存済み最古ツイートから
@@ -171,6 +176,9 @@ async function backfillAllAccounts(xUserId) {
         untilId,
         maxPages: BACKFILL_PAGES,
         screenName: account.screen_name,
+        onPage: (n) => {
+          workerState.backfillProgress.done += n;
+        },
       });
 
       // 途中でエラーになっても取得済みページ分は保存し、カーソルも進める
@@ -211,6 +219,7 @@ async function backfillAllAccounts(xUserId) {
 export async function runBackfillOnce(xUserId) {
   workerState.running = true;
   workerState.lastError = null;
+  workerState.backfillProgress = { done: 0, total: 0 };
   console.log(`[backfill] manual run triggered${xUserId ? ` (account: ${xUserId})` : ''}`);
   try {
     await backfillAllAccounts(xUserId);
@@ -228,6 +237,7 @@ export async function runBackfillOnce(xUserId) {
 export async function runCollectOnce() {
   workerState.running = true;
   workerState.lastError = null;
+  workerState.backfillProgress = { done: 0, total: 0 };
   console.log('[collect] manual run triggered');
   try {
     // アカウント登録直後にボタンを押しても動くよう、ID解決も行う

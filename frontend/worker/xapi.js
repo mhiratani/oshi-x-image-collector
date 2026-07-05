@@ -67,7 +67,7 @@ export async function resolveUserId(screenName) {
 //   exhausted = これ以上古いツイートがない（またはAPI上限3,200件に到達）
 //   error    = ページ途中で失敗した場合のエラー。取得済みページ分の media は
 //              捨てずに返す（クレジット切れ等でも成果を無駄にしない）
-export async function fetchPhotoMedia({ userId, sinceId, untilId, maxPages, screenName }) {
+export async function fetchPhotoMedia({ userId, sinceId, untilId, maxPages, screenName, onPage }) {
   const purpose = untilId ? 'backfill' : 'collect';
   const media = [];
   let newestId = null;
@@ -105,6 +105,8 @@ export async function fetchPhotoMedia({ userId, sinceId, untilId, maxPages, scre
 
     if (json.meta?.newest_id && !newestId) newestId = json.meta.newest_id;
     if (json.meta?.oldest_id) oldestId = json.meta.oldest_id;
+
+    onPage?.(json.data?.length ?? 0);
 
     if (!json.data?.length) {
       exhausted = true;

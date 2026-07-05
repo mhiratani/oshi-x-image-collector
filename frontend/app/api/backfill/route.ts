@@ -26,6 +26,7 @@ export async function GET(req: Request) {
     running: workerState.running,
     allDone: done.rows[0].remaining === 0,
     lastError: workerState.lastError,
+    progress: workerState.backfillProgress,
   });
 }
 
