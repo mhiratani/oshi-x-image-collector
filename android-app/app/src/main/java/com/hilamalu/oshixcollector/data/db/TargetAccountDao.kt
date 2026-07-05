@@ -1,0 +1,33 @@
+package com.hilamalu.oshixcollector.data.db
+
+import androidx.room.Dao
+import androidx.room.Delete
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Update
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface TargetAccountDao {
+    @Query("SELECT * FROM target_accounts ORDER BY createdAt")
+    fun observeAll(): Flow<List<TargetAccountEntity>>
+
+    @Query("SELECT * FROM target_accounts ORDER BY createdAt")
+    suspend fun getAll(): List<TargetAccountEntity>
+
+    @Query("SELECT * FROM target_accounts WHERE screenName = :screenName")
+    suspend fun getByScreenName(screenName: String): TargetAccountEntity?
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(account: TargetAccountEntity)
+
+    @Update
+    suspend fun update(account: TargetAccountEntity)
+
+    @Delete
+    suspend fun delete(account: TargetAccountEntity)
+
+    @Query("DELETE FROM target_accounts WHERE screenName = :screenName")
+    suspend fun deleteByScreenName(screenName: String)
+}

@@ -129,10 +129,13 @@ sequenceDiagram
 - **表示は常に端末ローカルストレージから**。一度表示した画像を保存しておき、2回目以降はネットワークアクセスなしで即表示。
 - 「クラウドバックアップ」をONにした場合のみ、ローカル保存に加えて設定画面で入力したR2/S3のクレデンシャルを使ってAndroidアプリから**直接**アップロードする（表示には使わない、片方向のバックアップのみ。こちらもPiは経由しない）。
 
-### 3.4 顔検出
+### 3.4 顔検出（実装済み）
 
 - Pi側は既存のBlazeFace（`frontend/worker/faceDetect.js`）を継続。
-- Android側での顔検出は**ML Kit Face Detection**（Google純正・オンデバイス・無料）を使う。
+- Android側での顔検出は**ML Kit Face Detection**（Google純正・オンデバイス・無料、unbundled）を使う。実装は`android-app/app/.../data/face/FaceDetector.kt`、oshi-wallの`FocalPointDetector.kt`と同じパターン（Task⇄coroutine変換、ダウンサンプリングしてからデコード、モデル未取得時はUnavailableを返し永続化せず次回再試行）。
+- 「最新を取得」時に、新規ダウンロード画像と前回未判定分（`isFace IS NULL AND NOT faceReviewed`、Web版と同じ対象条件）をまとめて判定し、Room（`media_assets.isFace`/`faceConfidence`）に保存。クラウドバックアップON時はFirestoreにもミラーする。
+- ML Kitは生の確率値を公開していないため、`faceConfidence`は検出有無から作る1.0/0.0の疑似値（Web版BlazeFaceの値とは意味が異なる）。
+- 画像一覧画面に「顔のみ」フィルターチップを実装済み。
 
 ### 3.5 バッチ/同期タイミング
 
@@ -147,3 +150,31 @@ sequenceDiagram
 - Android⇄クラウド間の同期方式（バックアップ書き込みの失敗時リトライ・キューの設計）。
 - `embedding vector(512)`（CLIPセマンティック検索）は現状未実装・未使用。実装する場合もこの規模ならpgvectorのブルートフォースで十分（OpenSearch等の追加インフラは不要）。
 - Postgres/R2への直接接続はDB・バケットのクレデンシャルを端末（設定画面の入力値、SharedPreferences等）に保持することになるため、保管方法（EncryptedSharedPreferences等）を検討する。
+
+## 5. 更新: クラウドバックアップ方式をFirestoreに変更
+
+3.2節の「AndroidからPostgresへ直接書き込む」は実装段階で以下の理由により変更した（3.2/3.3の記述は経緯として残すが、実装は本節の内容が最新）。
+
+### 変更の経緯
+
+- Android向けの素のPostgresソケット接続に公式対応ドライバが無く、直接書き込みが非現実的と判明。
+- 代替としてMongoDB Atlasを検討したが、AndroidからのDirect Write手段だった**Atlas Device SDK / Device Sync が2025年9月30日付でMongoDB公式によりEOL（提供終了）済み**と判明（Data APIも同時にEOL）。Device Sync自体も現役だった頃から無料枠(M0)非対応で最低M10（有料）が必要だった。
+- 最終的に**Firebase Firestore**（Google公式・現役・Android向けオフラインファーストSDKを標準搭載）を採用。無料枠（Sparkプラン）で個人〜友人共有規模には十分。
+
+### 採用した構成
+
+- ローカル保存は変更なし。**Room（SQLite）が常時・唯一の読み取り経路**（オフラインで完結、Firebaseプロジェクトへの依存なしで動作する）。
+- 「クラウドバックアップ」ON時のみ、Room書き込みと同時に**Firestoreへ非同期・片方向でミラー書き込み**（失敗してもローカルには影響しない）。画像本体は変更なく**Cloudflare R2へ直接PUT**。
+- Firestoreの書き込み先を一意なuidで区別する必要があるため、軽量な**Google Sign-In（Firebase Auth, Credential Manager経由）**を追加した。これはapp_users/user_subscriptions相当のマルチテナント管理（Web版の話）とは別物で、Firestoreセキュリティルールが「本人のデータだけ書ける」を担保するためだけに使う。
+- コレクション構成: `users/{uid}/targetAccounts/{screenName}`, `users/{uid}/mediaAssets/{mediaKey}`（`android-app/firestore.rules` 参照）。
+- 副次効果: 同じGoogleアカウントでWeb側もFirebase Authでログインすれば同一データが見られるため、3.1節が目指した「同一ユーザーの複数クライアント」をPostgres接続文字列の共有より素直な形で満たせる。
+- Web側（Next.js）のPostgresは今回変更していない。Web側もFirestoreへ統一するかは次フェーズで検討する。
+
+### Firebase設定はビルド時ファイルではなく設定画面から入力する方式に変更
+
+当初は`google-services.json`をビルドに組み込む方式で実装したが、「R2と同様、Firestoreもアプリの設定画面から必要な情報を入力するだけで使えるようにしたい」という要望を受けて変更した。
+
+- `google-services.json` / Google Services Gradleプラグインは使わない。
+- 代わりに、設定画面で入力した4項目（APIキー・プロジェクトID・アプリID・Google Sign-In用ウェブクライアントID）から、実行時に`FirebaseOptions`で名前付きFirebaseAppを初期化する（`FirebaseAppProvider`）。これらの値はAPIキーを含め非秘匿情報であり、Firestoreの安全性は値を隠すことではなくセキュリティルール側（`request.auth.uid == uid`）で担保する。
+- Firebaseプロジェクトの作成・Firestore/Google Sign-Inプロバイダの有効化自体はGoogleアカウントでの操作が必要なため、依然として開発者が一度だけFirebaseコンソールで行う必要がある（アプリからは代行できない）。その後に得られる4つの値を設定画面に入力するだけで、以降は「クラウドバックアップをONにする→Googleでサインイン」だけで自動的に同期されるようになる。
+- 同じ4つの値を他の人（友人等）の端末にも入力してもらえば、同じFirebaseプロジェクトを使い回せる（各自のGoogleアカウントでFirestoreセキュリティルールにより分離される）。

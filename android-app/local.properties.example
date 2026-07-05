@@ -1,0 +1,12 @@
+# =============================================================
+# local.properties - ローカルビルド設定（git管理外 / マシン依存）
+# =============================================================
+# このファイルをコピーして local.properties を作成してください。
+#   cp local.properties.example local.properties
+#
+# local.properties は .gitignore により git 管理対象外です。
+# =============================================================
+
+# Android SDK のパス（Android Studio が自動生成する場合はそのまま）
+# Windows 例: sdk.dir=C:\\Users\\<user>\\AppData\\Local\\Android\\Sdk
+sdk.dir=/path/to/android-sdk
