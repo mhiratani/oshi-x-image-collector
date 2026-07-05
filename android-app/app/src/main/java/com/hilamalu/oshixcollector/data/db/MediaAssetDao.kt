@@ -30,6 +30,10 @@ interface MediaAssetDao {
     @Query("SELECT * FROM media_assets WHERE r2BackupUrl IS NULL AND backupAttempts < :maxAttempts ORDER BY postedAt DESC")
     suspend fun getPendingBackup(maxAttempts: Int = 5): List<MediaAssetEntity>
 
+    /** クラウドバックアップからの復元用。R2にバックアップ済みのはずの行のうち、ローカル画像が欠けているものを探す。 */
+    @Query("SELECT * FROM media_assets WHERE r2BackupUrl IS NOT NULL")
+    suspend fun getBackedUp(): List<MediaAssetEntity>
+
     /** [frontend/worker/faceDetect.js]の対象条件（`is_face IS NULL AND NOT face_reviewed`）と同じ。 */
     @Query("SELECT * FROM media_assets WHERE isFace IS NULL AND NOT faceReviewed AND localImagePath IS NOT NULL ORDER BY postedAt DESC")
     suspend fun getPendingFaceDetection(): List<MediaAssetEntity>

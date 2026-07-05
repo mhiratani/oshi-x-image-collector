@@ -6,6 +6,17 @@
     <string name="nav_accounts">アカウント</string>
     <string name="nav_settings">設定</string>
 
+    <!-- Onboarding Screen -->
+    <string name="onboarding_welcome_title">推し画像コレクターへようこそ</string>
+    <string name="onboarding_welcome_description">Xの指定アカウントから画像を収集・閲覧できます。以前クラウドバックアップを使っていた場合は、データを復元できます。</string>
+    <string name="onboarding_start_button">はじめる</string>
+    <string name="onboarding_ask_restore">クラウドバックアップから復元しますか？</string>
+    <string name="onboarding_ask_cloud_backup">クラウドバックアップを利用しますか？</string>
+    <string name="onboarding_yes">はい</string>
+    <string name="onboarding_no">いいえ</string>
+    <string name="onboarding_retry">再試行</string>
+    <string name="onboarding_skip">スキップして始める</string>
+
     <!-- Media List Screen -->
     <string name="media_refresh">最新を取得</string>
     <string name="media_empty">画像がまだありません\nアカウントタブから追跡アカウントを追加してください</string>
@@ -37,6 +48,11 @@
     <string name="settings_firebase_web_client_id">Google Sign-In ウェブクライアントID</string>
     <string name="settings_cloud_backup_firebase_not_configured">上記のFirebase設定を保存すると、クラウドバックアップが利用できるようになります</string>
     <string name="settings_cloud_backup_signed_in_as">サインイン中: %1$s</string>
+    <string name="settings_cloud_restore_button">クラウドから復元</string>
+    <string name="settings_cloud_restore_fetching">データを取得中…</string>
+    <string name="settings_cloud_restore_downloading">画像をダウンロード中 (%1$d/%2$d)</string>
+    <string name="settings_cloud_restore_success">復元完了: アカウント%1$d件、メタデータ%2$d件、画像%3$d件ダウンロード（失敗%4$d件）</string>
+    <string name="settings_cloud_restore_failed">復元に失敗しました: %1$s</string>
     <string name="settings_save">保存</string>
     <string name="settings_saved">保存しました</string>
     <string name="settings_sign_in_failed">サインインに失敗しました: %1$s</string>

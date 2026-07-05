@@ -31,6 +31,13 @@ class ImageStorage(
         destination.absolutePath
     }
 
+    /** R2などから取得済みのバイト列をローカルに保存し、保存先の絶対パスを返す（復元機能用）。 */
+    suspend fun saveBytes(mediaKey: String, bytes: ByteArray): String = withContext(Dispatchers.IO) {
+        val destination = fileFor(mediaKey)
+        destination.outputStream().use { out -> out.write(bytes) }
+        destination.absolutePath
+    }
+
     fun delete(mediaKey: String) {
         fileFor(mediaKey).delete()
     }

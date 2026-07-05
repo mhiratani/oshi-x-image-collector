@@ -5,8 +5,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -29,6 +32,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hilamalu.oshixcollector.R
+import com.hilamalu.oshixcollector.data.MediaRepository
 
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
@@ -158,6 +162,57 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                 }
                 viewModel.signedInEmail?.let { email ->
                     Text(stringResource(R.string.settings_cloud_backup_signed_in_as, email))
+                }
+
+                Button(
+                    onClick = { viewModel.restoreFromCloud() },
+                    enabled = viewModel.restoreState !is RestoreUiState.InProgress,
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text(stringResource(R.string.settings_cloud_restore_button))
+                }
+
+                when (val state = viewModel.restoreState) {
+                    is RestoreUiState.InProgress -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                            Text(
+                                when (val progress = state.progress) {
+                                    MediaRepository.RestoreProgress.FetchingMetadata ->
+                                        stringResource(R.string.settings_cloud_restore_fetching)
+                                    is MediaRepository.RestoreProgress.DownloadingImages ->
+                                        stringResource(
+                                            R.string.settings_cloud_restore_downloading,
+                                            progress.completed,
+                                            progress.total
+                                        )
+                                },
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                    }
+                    is RestoreUiState.Success -> LaunchedEffect(state) {
+                        snackbarHostState.showSnackbar(
+                            context.getString(
+                                R.string.settings_cloud_restore_success,
+                                state.result.accountsRestored,
+                                state.result.mediaRowsRestored,
+                                state.result.imagesDownloaded,
+                                state.result.imagesFailed
+                            )
+                        )
+                        viewModel.dismissRestoreState()
+                    }
+                    is RestoreUiState.Failed -> LaunchedEffect(state) {
+                        snackbarHostState.showSnackbar(
+                            context.getString(R.string.settings_cloud_restore_failed, state.message)
+                        )
+                        viewModel.dismissRestoreState()
+                    }
+                    RestoreUiState.Idle -> Unit
                 }
             }
         }

@@ -23,7 +23,10 @@ import androidx.navigation.compose.rememberNavController
 import com.hilamalu.oshixcollector.R
 import com.hilamalu.oshixcollector.ui.accounts.AccountsScreen
 import com.hilamalu.oshixcollector.ui.media.MediaListScreen
+import com.hilamalu.oshixcollector.ui.onboarding.OnboardingScreen
 import com.hilamalu.oshixcollector.ui.settings.SettingsScreen
+
+private const val START_ROUTE = "start"
 
 private sealed class Destination(val route: String, val labelRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     data object Media : Destination("media", R.string.nav_media, Icons.Filled.Photo)
@@ -39,29 +42,40 @@ fun OshiXImageCollectorNavGraph(navController: NavHostController = rememberNavCo
         bottomBar = {
             val backStackEntry by navController.currentBackStackEntryAsState()
             val currentRoute = backStackEntry?.destination?.route
-            NavigationBar {
-                bottomNavDestinations.forEach { destination ->
-                    NavigationBarItem(
-                        selected = currentRoute == destination.route,
-                        onClick = {
-                            navController.navigate(destination.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(destination.icon, contentDescription = null) },
-                        label = { Text(stringResource(destination.labelRes)) }
-                    )
+            if (currentRoute != START_ROUTE) {
+                NavigationBar {
+                    bottomNavDestinations.forEach { destination ->
+                        NavigationBarItem(
+                            selected = currentRoute == destination.route,
+                            onClick = {
+                                navController.navigate(destination.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = { Icon(destination.icon, contentDescription = null) },
+                            label = { Text(stringResource(destination.labelRes)) }
+                        )
+                    }
                 }
             }
         }
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Destination.Media.route,
+            startDestination = START_ROUTE,
             modifier = Modifier.padding(innerPadding)
         ) {
+            composable(START_ROUTE) {
+                OnboardingScreen(
+                    onFinished = {
+                        navController.navigate(Destination.Media.route) {
+                            popUpTo(START_ROUTE) { inclusive = true }
+                        }
+                    }
+                )
+            }
             composable(Destination.Media.route) { MediaListScreen() }
             composable(Destination.Accounts.route) { AccountsScreen() }
             composable(Destination.Settings.route) { SettingsScreen() }

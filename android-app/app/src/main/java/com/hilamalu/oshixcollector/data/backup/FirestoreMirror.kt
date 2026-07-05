@@ -70,6 +70,48 @@ class FirestoreMirror(
         }.onFailure { e -> Log.w(TAG, "mirrorMediaAssets failed (${assets.size} items)", e) }
     }
 
+    /** クラウドバックアップからの復元用。未サインインの場合は例外を投げる（ユーザー起動アクションのため）。 */
+    suspend fun fetchTargetAccounts(): List<TargetAccountEntity> {
+        val userDoc = userDocOrNull() ?: error("Googleサインインが必要です")
+        return userDoc.collection("targetAccounts").get().await().documents.map { doc ->
+            TargetAccountEntity(
+                screenName = doc.id,
+                xUserId = doc.getString("xUserId"),
+                lastFetchedId = doc.getString("lastFetchedId"),
+                lastCheckedAt = doc.getLong("lastCheckedAt"),
+                createdAt = doc.getLong("createdAt") ?: 0L
+            )
+        }
+    }
+
+    /** クラウドバックアップからの復元用。未サインインの場合は例外を投げる（ユーザー起動アクションのため）。 */
+    suspend fun fetchMediaAssets(): List<MediaAssetEntity> {
+        val userDoc = userDocOrNull() ?: error("Googleサインインが必要です")
+        return userDoc.collection("mediaAssets").get().await().documents.mapNotNull { doc ->
+            val tweetId = doc.getString("tweetId")
+            val xUserId = doc.getString("xUserId")
+            val xCdnUrl = doc.getString("xCdnUrl")
+            if (tweetId == null || xUserId == null || xCdnUrl == null) {
+                Log.w(TAG, "fetchMediaAssets: skipping malformed doc ${doc.id}")
+                return@mapNotNull null
+            }
+            MediaAssetEntity(
+                mediaKey = doc.id,
+                tweetId = tweetId,
+                xUserId = xUserId,
+                xCdnUrl = xCdnUrl,
+                localImagePath = null,
+                r2BackupUrl = doc.getString("r2BackupUrl"),
+                backupAttempts = 0,
+                postedAt = doc.getLong("postedAt") ?: 0L,
+                createdAt = doc.getLong("createdAt") ?: 0L,
+                isFace = doc.getBoolean("isFace"),
+                faceConfidence = doc.getDouble("faceConfidence")?.toFloat(),
+                faceReviewed = false
+            )
+        }
+    }
+
     private companion object {
         const val TAG = "FirestoreMirror"
     }

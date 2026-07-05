@@ -32,22 +32,64 @@ internal object Sigv4Signer {
         payload: ByteArray,
         contentType: String
     ): SignedHeaders {
+        val core = sign(
+            method = "PUT",
+            accessKeyId = accessKeyId,
+            secretAccessKey = secretAccessKey,
+            region = region,
+            host = host,
+            uriPath = uriPath,
+            payloadHash = sha256Hex(payload),
+            additionalSignedHeaders = mapOf("content-type" to contentType)
+        )
+        return SignedHeaders(core.headers + ("Content-Type" to contentType))
+    }
+
+    /**
+     * GETリクエストの署名済みヘッダーを生成する（復元機能でのR2からのダウンロード用）。
+     * GETはボディを持たないため、payloadHashは空バイト列のSHA256（SigV4の規定）を使う。
+     */
+    fun signGet(
+        accessKeyId: String,
+        secretAccessKey: String,
+        region: String,
+        host: String,
+        uriPath: String
+    ): SignedHeaders = sign(
+        method = "GET",
+        accessKeyId = accessKeyId,
+        secretAccessKey = secretAccessKey,
+        region = region,
+        host = host,
+        uriPath = uriPath,
+        payloadHash = sha256Hex(ByteArray(0)),
+        additionalSignedHeaders = emptyMap()
+    )
+
+    private fun sign(
+        method: String,
+        accessKeyId: String,
+        secretAccessKey: String,
+        region: String,
+        host: String,
+        uriPath: String,
+        payloadHash: String,
+        additionalSignedHeaders: Map<String, String>
+    ): SignedHeaders {
         val now = Instant.now()
         val amzDate = DATE_FORMAT.format(now)
         val dateStamp = DATE_ONLY_FORMAT.format(now)
-        val payloadHash = sha256Hex(payload)
 
         val canonicalHeadersMap = sortedMapOf(
-            "content-type" to contentType,
             "host" to host,
             "x-amz-content-sha256" to payloadHash,
             "x-amz-date" to amzDate
-        )
+        ).apply { putAll(additionalSignedHeaders) }
         val signedHeaders = canonicalHeadersMap.keys.joinToString(";")
         val canonicalHeaders = canonicalHeadersMap.entries.joinToString("") { (k, v) -> "$k:$v\n" }
 
         val canonicalRequest = listOf(
-            "PUT",
+            method,
             uriPath,
             "", // query string (未使用)
             canonicalHeaders,
@@ -75,8 +117,7 @@ internal object Sigv4Signer {
             mapOf(
                 "Authorization" to authorization,
                 "x-amz-content-sha256" to payloadHash,
-                "x-amz-date" to amzDate,
-                "Content-Type" to contentType
+                "x-amz-date" to amzDate
             )
         )
     }

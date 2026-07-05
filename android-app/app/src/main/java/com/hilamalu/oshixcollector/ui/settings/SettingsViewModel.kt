@@ -16,6 +16,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+sealed interface RestoreUiState {
+    data object Idle : RestoreUiState
+    data class InProgress(val progress: MediaRepository.RestoreProgress) : RestoreUiState
+    data class Success(val result: MediaRepository.RestoreResult) : RestoreUiState
+    data class Failed(val message: String) : RestoreUiState
+}
+
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val secureSettings = SecureSettings(application)
     private val cloudBackupSettings = CloudBackupSettings(application)
@@ -44,6 +51,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         private set
 
     var errorMessage by mutableStateOf<String?>(null)
+        private set
+
+    var restoreState by mutableStateOf<RestoreUiState>(RestoreUiState.Idle)
         private set
 
     var saved by mutableStateOf(false)
@@ -97,5 +107,27 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 cloudBackupSettings.setEnabled(false)
             }
         }
+    }
+
+    fun restoreFromCloud() {
+        if (restoreState is RestoreUiState.InProgress) return
+        viewModelScope.launch {
+            restoreState = RestoreUiState.InProgress(MediaRepository.RestoreProgress.FetchingMetadata)
+            try {
+                if (googleAuthManager.currentUser == null) {
+                    signedInEmail = googleAuthManager.signIn().email
+                }
+                val result = repository.restoreFromCloud { progress ->
+                    restoreState = RestoreUiState.InProgress(progress)
+                }
+                restoreState = RestoreUiState.Success(result)
+            } catch (e: Exception) {
+                restoreState = RestoreUiState.Failed(e.message ?: "復元に失敗しました")
+            }
+        }
+    }
+
+    fun dismissRestoreState() {
+        restoreState = RestoreUiState.Idle
     }
 }

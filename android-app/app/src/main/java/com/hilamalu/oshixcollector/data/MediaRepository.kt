@@ -13,14 +13,34 @@ import com.hilamalu.oshixcollector.data.face.FaceDetector
 import com.hilamalu.oshixcollector.data.settings.SecureSettings
 import com.hilamalu.oshixcollector.data.xapi.XApiClient
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 /**
  * X取得→Room保存→（バックアップON時のみ）Firestore/R2ミラー、を一連でまとめるリポジトリ。
  * design.md 3.1.1/3.1.2のデータフローに対応する。
  */
 class MediaRepository(context: Context) {
+    /** クラウドバックアップからの復元の進捗状態。 */
+    sealed interface RestoreProgress {
+        data object FetchingMetadata : RestoreProgress
+        data class DownloadingImages(val completed: Int, val total: Int) : RestoreProgress
+    }
+
+    /** クラウドバックアップからの復元結果のサマリー。 */
+    data class RestoreResult(
+        val accountsRestored: Int,
+        val mediaRowsRestored: Int,
+        val imagesDownloaded: Int,
+        val imagesFailed: Int
+    )
+
     private val db = AppDatabase.getDatabase(context)
     private val targetAccountDao = db.targetAccountDao()
     private val mediaAssetDao = db.mediaAssetDao()
@@ -34,6 +54,9 @@ class MediaRepository(context: Context) {
 
     val accounts: Flow<List<TargetAccountEntity>> = targetAccountDao.observeAll()
     val media: Flow<List<MediaAssetEntity>> = mediaAssetDao.observeAll()
+
+    /** オンボーディング画面から呼ぶ。追跡アカウントが1件も無ければ「ローカルデータが空」とみなす。 */
+    suspend fun hasAnyAccounts(): Boolean = targetAccountDao.count() > 0
 
     private fun xApiClient(): XApiClient {
         val token = secureSettings.xBearerToken
@@ -186,7 +209,68 @@ class MediaRepository(context: Context) {
         }
     }
 
+    /**
+     * クラウドバックアップからの復元。設定画面から手動で呼ぶ。
+     * 既存のローカル行は上書きしない（追加のみ）ため、途中で失敗しても再実行すれば安全に再開できる。
+     */
+    suspend fun restoreFromCloud(onProgress: (RestoreProgress) -> Unit = {}): RestoreResult {
+        onProgress(RestoreProgress.FetchingMetadata)
+        val cloudAccounts = firestoreMirror.fetchTargetAccounts()
+        val cloudMedia = firestoreMirror.fetchMediaAssets()
+
+        var accountsRestored = 0
+        for (account in cloudAccounts) {
+            if (targetAccountDao.getByScreenName(account.screenName) == null) {
+                targetAccountDao.insert(account)
+                accountsRestored++
+            }
+        }
+
+        val insertedIds = if (cloudMedia.isNotEmpty()) mediaAssetDao.insertAll(cloudMedia) else emptyList()
+        val mediaRowsRestored = insertedIds.count { it != -1L }
+
+        val candidates = mediaAssetDao.getBackedUp()
+            .filter { it.localImagePath == null || !File(it.localImagePath).exists() }
+        val (downloaded, failed) = downloadMissingImages(candidates, onProgress)
+
+        return RestoreResult(accountsRestored, mediaRowsRestored, downloaded, failed)
+    }
+
+    private suspend fun downloadMissingImages(
+        candidates: List<MediaAssetEntity>,
+        onProgress: (RestoreProgress) -> Unit
+    ): Pair<Int, Int> {
+        if (candidates.isEmpty()) return 0 to 0
+        val semaphore = Semaphore(RESTORE_DOWNLOAD_CONCURRENCY)
+        val successCount = AtomicInteger(0)
+        val failureCount = AtomicInteger(0)
+        val total = candidates.size
+
+        coroutineScope {
+            candidates.map { asset ->
+                async {
+                    semaphore.withPermit {
+                        runCatching {
+                            val bytes = r2Uploader.download(asset.mediaKey, asset.xUserId)
+                            val path = imageStorage.saveBytes(asset.mediaKey, bytes)
+                            mediaAssetDao.updateLocalImagePath(asset.mediaKey, path)
+                        }.onSuccess {
+                            successCount.incrementAndGet()
+                        }.onFailure { e ->
+                            Log.w(TAG, "restore image download failed for ${asset.mediaKey}", e)
+                            failureCount.incrementAndGet()
+                        }
+                        onProgress(RestoreProgress.DownloadingImages(successCount.get() + failureCount.get(), total))
+                    }
+                }
+            }.awaitAll()
+        }
+
+        return successCount.get() to failureCount.get()
+    }
+
     private companion object {
         const val TAG = "MediaRepository"
+        const val RESTORE_DOWNLOAD_CONCURRENCY = 4
     }
 }

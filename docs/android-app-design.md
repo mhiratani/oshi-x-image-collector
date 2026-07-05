@@ -178,3 +178,13 @@ sequenceDiagram
 - 代わりに、設定画面で入力した4項目（APIキー・プロジェクトID・アプリID・Google Sign-In用ウェブクライアントID）から、実行時に`FirebaseOptions`で名前付きFirebaseAppを初期化する（`FirebaseAppProvider`）。これらの値はAPIキーを含め非秘匿情報であり、Firestoreの安全性は値を隠すことではなくセキュリティルール側（`request.auth.uid == uid`）で担保する。
 - Firebaseプロジェクトの作成・Firestore/Google Sign-Inプロバイダの有効化自体はGoogleアカウントでの操作が必要なため、依然として開発者が一度だけFirebaseコンソールで行う必要がある（アプリからは代行できない）。その後に得られる4つの値を設定画面に入力するだけで、以降は「クラウドバックアップをONにする→Googleでサインイン」だけで自動的に同期されるようになる。
 - 同じ4つの値を他の人（友人等）の端末にも入力してもらえば、同じFirebaseプロジェクトを使い回せる（各自のGoogleアカウントでFirestoreセキュリティルールにより分離される）。
+
+### 復元機能（実装済み）
+
+当初のミラー書き込みは片方向（ローカル→クラウド）のみで、機種変更・端末紛失時にクラウド側からデータを戻す手段が無かった（要件漏れ）。設定画面の「クラウドから復元」ボタンから手動でトリガーする復元機能を追加した。
+
+- `FirestoreMirror`に読み出し用メソッド（`fetchTargetAccounts`/`fetchMediaAssets`）を追加し、`users/{uid}/targetAccounts`・`users/{uid}/mediaAssets`を取得してRoom Entityへマッピングする。
+- `R2Uploader`にSigV4署名付きGETによる`download`を追加（`Sigv4Signer`は元々PUT専用だったため、共通の署名処理を切り出してGETにも対応させた）。
+- 復元は**追加のみ**（既存のローカル行は上書きしない）。RoomのIGNORE-on-conflict insertをそのまま使うため、新規のupsert系DAOは不要で、途中失敗時も再実行するだけで安全に再開できる。
+- 画像ダウンロードは同時実行数4のセマフォで並列化し、1件ずつの失敗は握りつぶして続行（成功/失敗件数を集計してユーザーに表示）。
+- 既知の制約: 削除の伝播は無い（ローカルで削除したアカウント/メディアがFirestoreに残っていれば復元で復活しうる）。競合解消UIも無い。

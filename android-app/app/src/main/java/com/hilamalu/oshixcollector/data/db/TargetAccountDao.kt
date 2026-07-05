@@ -19,6 +19,9 @@ interface TargetAccountDao {
     @Query("SELECT * FROM target_accounts WHERE screenName = :screenName")
     suspend fun getByScreenName(screenName: String): TargetAccountEntity?
 
+    @Query("SELECT COUNT(*) FROM target_accounts")
+    suspend fun count(): Int
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(account: TargetAccountEntity)
 
