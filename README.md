@@ -12,7 +12,7 @@ X（Twitter）の指定アカウントから画像を定期収集し、バック
 - `firestore.indexes.json` : Firestoreの複合インデックス定義（`firebase deploy --only firestore:indexes` でデプロイ）
 - `android-app/` : Android版（Kotlin, 新規）。設計は `docs/android-app-design.md` を参照。現状はビルド可能な最小スケルトンのみ（機能未実装）
 
-Web版のデータストアは **Firestore**（旧: 自前ホストのPostgres）。Web版・Android版は同じFirebaseプロジェクトを
+Web版のデータストアは **Firestore**。Web版・Android版は同じFirebaseプロジェクトを
 使うことはできるが、コレクション構成が異なるためデータそのものは共有しない（詳細は上記設計書を参照）。
 
 画像バックアップの実体は **Cloudflare R2**（S3互換オブジェクトストレージ）。
@@ -63,18 +63,6 @@ firebase deploy --only firestore:indexes --project <FIREBASE_PROJECT_ID>
 ```
 
 コレクション構成・インデックス一覧の詳細は `docs/web-firestore-migration-design.md` を参照。
-
-既存のPostgres環境からデータを移す場合は `frontend/scripts/migrate-postgres-to-firestore.mjs` を使う
-（一度きりの移行スクリプト。`.env`に旧`PG_*`と新`FIREBASE_*`の両方を設定した状態で実行する。
-再実行しても主キーをそのままドキュメントIDに使うため上書きになるだけで安全）。
-
-```
-docker build --target builder -t oshi-migrate ./frontend
-docker run --rm --env-file .env oshi-migrate node scripts/migrate-postgres-to-firestore.mjs
-```
-
-本番環境を実際に切り替える場合は、cronの停止・移行・検証・ロールバック手順まで含めた
-`docs/web-firestore-migration-runbook.md` の手順に沿って行うこと。
 
 ### 4. 起動
 
