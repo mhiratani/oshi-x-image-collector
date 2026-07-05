@@ -131,6 +131,9 @@ dependencies {
     implementation(libs.googleid)
     implementation(libs.kotlinx.coroutines.play.services)
 
+    // ML Kit（顔検出。オンデバイス・無料。Web版のBlazeFaceと同じ役割）
+    implementation(libs.mlkit.face.detection)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

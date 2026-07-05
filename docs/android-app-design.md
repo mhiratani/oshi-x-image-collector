@@ -129,10 +129,13 @@ sequenceDiagram
 - **表示は常に端末ローカルストレージから**。一度表示した画像を保存しておき、2回目以降はネットワークアクセスなしで即表示。
 - 「クラウドバックアップ」をONにした場合のみ、ローカル保存に加えて設定画面で入力したR2/S3のクレデンシャルを使ってAndroidアプリから**直接**アップロードする（表示には使わない、片方向のバックアップのみ。こちらもPiは経由しない）。
 
-### 3.4 顔検出
+### 3.4 顔検出（実装済み）
 
 - Pi側は既存のBlazeFace（`frontend/worker/faceDetect.js`）を継続。
-- Android側での顔検出は**ML Kit Face Detection**（Google純正・オンデバイス・無料）を使う。
+- Android側での顔検出は**ML Kit Face Detection**（Google純正・オンデバイス・無料、unbundled）を使う。実装は`android-app/app/.../data/face/FaceDetector.kt`、oshi-wallの`FocalPointDetector.kt`と同じパターン（Task⇄coroutine変換、ダウンサンプリングしてからデコード、モデル未取得時はUnavailableを返し永続化せず次回再試行）。
+- 「最新を取得」時に、新規ダウンロード画像と前回未判定分（`isFace IS NULL AND NOT faceReviewed`、Web版と同じ対象条件）をまとめて判定し、Room（`media_assets.isFace`/`faceConfidence`）に保存。クラウドバックアップON時はFirestoreにもミラーする。
+- ML Kitは生の確率値を公開していないため、`faceConfidence`は検出有無から作る1.0/0.0の疑似値（Web版BlazeFaceの値とは意味が異なる）。
+- 画像一覧画面に「顔のみ」フィルターチップを実装済み。
 
 ### 3.5 バッチ/同期タイミング
 

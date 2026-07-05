@@ -9,7 +9,8 @@ import androidx.room.PrimaryKey
     tableName = "media_assets",
     indices = [
         Index(value = ["xUserId", "postedAt"]),
-        Index(value = ["r2BackupUrl"])
+        Index(value = ["r2BackupUrl"]),
+        Index(value = ["isFace"])
     ]
 )
 data class MediaAssetEntity(
@@ -21,5 +22,11 @@ data class MediaAssetEntity(
     val r2BackupUrl: String?,
     val backupAttempts: Int = 0,
     val postedAt: Long,
-    val createdAt: Long
+    val createdAt: Long,
+    /** 顔フィルター: null=未判定。[frontend/worker/faceDetect.js]のis_faceと同じ役割。 */
+    val isFace: Boolean? = null,
+    /** ML Kitは生の確率値を返さないため、検出結果を1f/0fの疑似スコアとして保持する（Web版のBlazeFace confidenceとは値の意味が異なる）。 */
+    val faceConfidence: Float? = null,
+    /** trueの場合、自動判定（再試行含む）の対象から外す。 */
+    val faceReviewed: Boolean = false
 )

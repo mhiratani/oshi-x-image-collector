@@ -8,16 +8,24 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hilamalu.oshixcollector.data.MediaRepository
 import com.hilamalu.oshixcollector.data.db.MediaAssetEntity
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = MediaRepository(application)
 
-    val media: StateFlow<List<MediaAssetEntity>> = repository.media
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    private val faceOnly = MutableStateFlow(false)
+
+    val media: StateFlow<List<MediaAssetEntity>> =
+        combine(repository.media, faceOnly) { assets, faceOnlyEnabled ->
+            if (faceOnlyEnabled) assets.filter { it.isFace == true } else assets
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val isFaceOnly: StateFlow<Boolean> = faceOnly
 
     var isRefreshing by mutableStateOf(false)
         private set
@@ -38,6 +46,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 isRefreshing = false
             }
         }
+    }
+
+    fun setFaceOnly(enabled: Boolean) {
+        faceOnly.value = enabled
     }
 
     fun dismissError() {

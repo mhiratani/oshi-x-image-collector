@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [TargetAccountEntity::class, MediaAssetEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -24,7 +24,11 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "oshi_x_image_collector.db"
-                ).build().also { instance = it }
+                )
+                    // アプリはまだ未リリースのため、v1→v2の実移行は書かず単純に作り直す。
+                    // リリース後にスキーマを変える場合は正式なMigrationに置き換えること。
+                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .build().also { instance = it }
             }
     }
 }

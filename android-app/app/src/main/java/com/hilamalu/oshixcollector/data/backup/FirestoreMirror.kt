@@ -60,7 +60,9 @@ class FirestoreMirror(
                             "xCdnUrl" to asset.xCdnUrl,
                             "r2BackupUrl" to asset.r2BackupUrl,
                             "postedAt" to asset.postedAt,
-                            "createdAt" to asset.createdAt
+                            "createdAt" to asset.createdAt,
+                            "isFace" to asset.isFace,
+                            "faceConfidence" to asset.faceConfidence
                         )
                     )
                 }

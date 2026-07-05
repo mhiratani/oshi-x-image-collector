@@ -2,20 +2,23 @@ package com.hilamalu.oshixcollector.ui.media
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
@@ -33,9 +36,11 @@ import coil3.compose.AsyncImage
 import com.hilamalu.oshixcollector.R
 import com.hilamalu.oshixcollector.data.db.MediaAssetEntity
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
     val media by viewModel.media.collectAsState()
+    val isFaceOnly by viewModel.isFaceOnly.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(viewModel.errorMessage) {
@@ -46,6 +51,19 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
     }
 
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.nav_media)) },
+                actions = {
+                    FilterChip(
+                        selected = isFaceOnly,
+                        onClick = { viewModel.setFaceOnly(!isFaceOnly) },
+                        label = { Text(stringResource(R.string.media_face_only_filter)) },
+                        modifier = Modifier.padding(end = 12.dp)
+                    )
+                }
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
@@ -63,7 +81,7 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
     ) { innerPadding ->
         if (media.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.media_empty))
+                Text(stringResource(if (isFaceOnly) R.string.media_empty_face_only else R.string.media_empty))
             }
         } else {
             LazyVerticalGrid(

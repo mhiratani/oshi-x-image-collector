@@ -9,6 +9,8 @@
     <!-- Media List Screen -->
     <string name="media_refresh">最新を取得</string>
     <string name="media_empty">画像がまだありません\nアカウントタブから追跡アカウントを追加してください</string>
+    <string name="media_empty_face_only">顔が写っている画像がまだありません</string>
+    <string name="media_face_only_filter">顔のみ</string>
 
     <!-- Accounts Screen -->
     <string name="accounts_add_hint">アカウント名を入力（@なし）</string>

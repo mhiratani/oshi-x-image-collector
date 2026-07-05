@@ -30,6 +30,13 @@ interface MediaAssetDao {
     @Query("SELECT * FROM media_assets WHERE r2BackupUrl IS NULL AND backupAttempts < :maxAttempts ORDER BY postedAt DESC")
     suspend fun getPendingBackup(maxAttempts: Int = 5): List<MediaAssetEntity>
 
+    /** [frontend/worker/faceDetect.js]の対象条件（`is_face IS NULL AND NOT face_reviewed`）と同じ。 */
+    @Query("SELECT * FROM media_assets WHERE isFace IS NULL AND NOT faceReviewed AND localImagePath IS NOT NULL ORDER BY postedAt DESC")
+    suspend fun getPendingFaceDetection(): List<MediaAssetEntity>
+
+    @Query("UPDATE media_assets SET isFace = :isFace, faceConfidence = :faceConfidence WHERE mediaKey = :mediaKey")
+    suspend fun updateFaceResult(mediaKey: String, isFace: Boolean, faceConfidence: Float)
+
     @Query("DELETE FROM media_assets WHERE xUserId = :xUserId")
     suspend fun deleteByAccount(xUserId: String)
 }

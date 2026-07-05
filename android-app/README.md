@@ -2,7 +2,7 @@
 
 X（Twitter）の指定アカウントの画像をAndroid端末単体で収集・閲覧するアプリ。設計は [`docs/android-app-design.md`](../docs/android-app-design.md) を参照。
 
-X API取得→ローカル保存（Room）→一覧表示、およびクラウドバックアップ（Firebase Firestore + Cloudflare R2）まで実装済み。
+X API取得→ローカル保存（Room）→一覧表示、顔検出によるフィルター（ML Kit）、およびクラウドバックアップ（Firebase Firestore + Cloudflare R2）まで実装済み。
 
 ## 構成
 
@@ -15,6 +15,7 @@ Gradle構成・`build_apk.sh` の作りは同リポジトリ管理者の [oshi-w
   - `data/ImageStorage.kt` : 画像本体のローカル保存
   - `data/settings/SecureSettings.kt` : Bearer Token・R2認証情報の暗号化保存
   - `data/backup/` : クラウドバックアップ（Google Sign-In + Firestoreミラー + R2アップロード）
+  - `data/face/FaceDetector.kt` : ML Kit Face Detectionによる顔判定（oshi-wallの`FocalPointDetector.kt`のパターンを踏襲）
   - `ui/` : 画像一覧・アカウント管理・設定の3画面（Compose Navigation）
 - `gradle/libs.versions.toml` : バージョンカタログ（AGP 9.1.1 / Kotlin 2.2.10 / Compose BOM 2024.09.00）
 - `build_apk.sh` : 署名付きリリースAPK/AABのビルドスクリプト（keystoreは初回実行時に自動生成、`dist/` はgit管理外）
@@ -65,9 +66,16 @@ cp local.properties.example local.properties
 
 Android Studioで `android-app/` を開いて通常通りデバッグ実行することも可能。
 
+## 顔フィルターについて
+
+「最新を取得」時に、新規ダウンロード画像および前回判定できなかった画像に対してML Kit Face Detection（オンデバイス・無料）で顔の有無を判定する。画像一覧画面右上の「顔のみ」チップで、顔が写っている画像だけに絞り込める。
+
+ML Kitのモデルは初回インストール時にPlay Services経由でバックグラウンド取得されるため、インストール直後は判定できないことがある（`isFace`はnullのまま残り、次回の「最新を取得」時に自動で再試行される）。
+
+Web版のBlazeFaceと異なり、ML Kitは生の確率値を公開していないため、`faceConfidence`は検出有無から作った1.0/0.0の疑似値になる（Web版の値とは意味が異なる点に注意）。
+
 ## 未実装（今後のセッションで対応）
 
-- ML Kit Face Detection（design.md 3.4）
 - WorkManagerによる定期同期（design.mdでは必須要件ではないとされている）
 - Web側（Next.js）のPostgres→Firestore移行（design.md参照。今回はAndroid側を先行実装したため、Web側は当面Postgresのまま）
 

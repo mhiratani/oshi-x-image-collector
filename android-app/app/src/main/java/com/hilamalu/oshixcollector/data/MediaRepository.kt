@@ -9,6 +9,7 @@ import com.hilamalu.oshixcollector.data.backup.R2Uploader
 import com.hilamalu.oshixcollector.data.db.AppDatabase
 import com.hilamalu.oshixcollector.data.db.MediaAssetEntity
 import com.hilamalu.oshixcollector.data.db.TargetAccountEntity
+import com.hilamalu.oshixcollector.data.face.FaceDetector
 import com.hilamalu.oshixcollector.data.settings.SecureSettings
 import com.hilamalu.oshixcollector.data.xapi.XApiClient
 import java.io.File
@@ -88,6 +89,9 @@ class MediaRepository(context: Context) {
 
                 val newEntities = result.media.map { photo ->
                     val localPath = runCatching { imageStorage.download(photo.mediaKey, photo.url) }.getOrNull()
+                    val faceResult = localPath
+                        ?.let { FaceDetector.detect(File(it)) }
+                        as? FaceDetector.Result.Detected
                     MediaAssetEntity(
                         mediaKey = photo.mediaKey,
                         tweetId = photo.tweetId,
@@ -96,7 +100,9 @@ class MediaRepository(context: Context) {
                         localImagePath = localPath,
                         r2BackupUrl = null,
                         postedAt = photo.postedAt,
-                        createdAt = System.currentTimeMillis()
+                        createdAt = System.currentTimeMillis(),
+                        isFace = faceResult?.isFace,
+                        faceConfidence = faceResult?.confidence
                     )
                 }
                 if (newEntities.isNotEmpty()) {
@@ -118,6 +124,34 @@ class MediaRepository(context: Context) {
             } catch (e: Exception) {
                 Log.w(TAG, "refresh failed for @${account.screenName}", e)
             }
+        }
+
+        detectPendingFaces(backupEnabled)
+    }
+
+    /**
+     * 顔検出モデルが未取得だった等の理由で判定できなかった画像（[frontend/worker/faceDetect.js]
+     * と同じ対象条件: `isFace IS NULL AND NOT faceReviewed`）をまとめて再試行する。
+     * クラウドバックアップの有無に関わらず常に実行する（顔判定はローカル機能のため）。
+     */
+    private suspend fun detectPendingFaces(backupEnabled: Boolean) {
+        val pending = mediaAssetDao.getPendingFaceDetection()
+        if (pending.isEmpty()) return
+
+        val updated = mutableListOf<MediaAssetEntity>()
+        for (asset in pending) {
+            val localPath = asset.localImagePath ?: continue
+            when (val result = FaceDetector.detect(File(localPath))) {
+                is FaceDetector.Result.Detected -> {
+                    mediaAssetDao.updateFaceResult(asset.mediaKey, result.isFace, result.confidence)
+                    updated += asset.copy(isFace = result.isFace, faceConfidence = result.confidence)
+                }
+                FaceDetector.Result.Unavailable -> Unit // 次回の「最新を取得」で再試行
+            }
+        }
+
+        if (backupEnabled && updated.isNotEmpty()) {
+            firestoreMirror.mirrorMediaAssets(updated)
         }
     }
 
