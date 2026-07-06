@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
@@ -86,14 +87,20 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
     ) { innerPadding ->
         if (media.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = 32.dp)
+                ) {
                     Icon(
                         Icons.Filled.PhotoLibrary,
                         contentDescription = null,
                         modifier = Modifier.padding(bottom = 8.dp),
                         tint = MaterialTheme.colorScheme.outline
                     )
-                    Text(stringResource(if (isFaceOnly) R.string.media_empty_face_only else R.string.media_empty))
+                    Text(
+                        stringResource(if (isFaceOnly) R.string.media_empty_face_only else R.string.media_empty),
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         } else {
