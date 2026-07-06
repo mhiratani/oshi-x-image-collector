@@ -21,6 +21,8 @@ sealed interface OnboardingStep {
     data object AskCloudBackup : OnboardingStep
     data object EnablingBackup : OnboardingStep
     data class Error(val message: String, val retryStep: OnboardingStep) : OnboardingStep
+    /** 復元/バックアップを希望したがFirebase未設定。設定画面へ誘導する。 */
+    data object NeedsConfiguration : OnboardingStep
     /** 判定完了（既にデータがあった）またはフロー完了。アプリ本体へ遷移する。 */
     data object Done : OnboardingStep
 }
@@ -45,13 +47,16 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun start() {
-        // Firebase未設定なら復元/バックアップともに使えないため、質問をスキップしてそのままアプリへ
-        step = if (secureSettings.isFirebaseConfigured) OnboardingStep.AskRestore else OnboardingStep.Done
+        step = OnboardingStep.AskRestore
     }
 
     fun answerRestore(wantsRestore: Boolean) {
         if (!wantsRestore) {
             step = OnboardingStep.AskCloudBackup
+            return
+        }
+        if (!secureSettings.isFirebaseConfigured) {
+            step = OnboardingStep.NeedsConfiguration
             return
         }
         viewModelScope.launch {
@@ -69,6 +74,10 @@ class OnboardingViewModel(application: Application) : AndroidViewModel(applicati
     fun answerCloudBackup(wantsBackup: Boolean) {
         if (!wantsBackup) {
             step = OnboardingStep.Done
+            return
+        }
+        if (!secureSettings.isFirebaseConfigured) {
+            step = OnboardingStep.NeedsConfiguration
             return
         }
         viewModelScope.launch {

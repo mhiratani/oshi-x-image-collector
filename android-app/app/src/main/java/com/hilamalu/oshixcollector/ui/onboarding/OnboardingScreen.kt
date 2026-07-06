@@ -23,16 +23,25 @@ import com.hilamalu.oshixcollector.data.MediaRepository
 
 /**
  * 初回起動オンボーディング。[onFinished]は判定完了（既存データ有り）またはフロー完了時に呼ばれる。
+ * [onNeedsConfiguration]は復元/バックアップを希望したがFirebase未設定だった場合、設定画面へ誘導するために呼ばれる。
  */
 @Composable
-fun OnboardingScreen(onFinished: () -> Unit, viewModel: OnboardingViewModel = viewModel()) {
+fun OnboardingScreen(
+    onFinished: () -> Unit,
+    onNeedsConfiguration: () -> Unit,
+    viewModel: OnboardingViewModel = viewModel()
+) {
     val step = viewModel.step
 
     LaunchedEffect(step) {
-        if (step is OnboardingStep.Done) onFinished()
+        when (step) {
+            is OnboardingStep.Done -> onFinished()
+            is OnboardingStep.NeedsConfiguration -> onNeedsConfiguration()
+            else -> Unit
+        }
     }
 
-    if (step is OnboardingStep.Checking || step is OnboardingStep.Done) return
+    if (step is OnboardingStep.Checking || step is OnboardingStep.Done || step is OnboardingStep.NeedsConfiguration) return
 
     Scaffold { innerPadding ->
         Column(

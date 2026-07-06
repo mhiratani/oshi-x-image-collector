@@ -73,6 +73,11 @@ fun OshiXImageCollectorNavGraph(navController: NavHostController = rememberNavCo
                         navController.navigate(Destination.Media.route) {
                             popUpTo(START_ROUTE) { inclusive = true }
                         }
+                    },
+                    onNeedsConfiguration = {
+                        navController.navigate(Destination.Settings.route) {
+                            popUpTo(START_ROUTE) { inclusive = true }
+                        }
                     }
                 )
             }
