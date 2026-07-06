@@ -7,7 +7,7 @@ const col = () => db.collection('share_links');
 export type ShareLink = {
   token: string;
   screen_name: string;
-  created_by: string;
+  owner_uid: string;
   revoked_at: Date | null;
 };
 
@@ -17,16 +17,16 @@ function fromSnap(snap: FirebaseFirestore.DocumentSnapshot): ShareLink | null {
   return {
     token: data.token,
     screen_name: data.screen_name,
-    created_by: data.created_by,
+    owner_uid: data.owner_uid,
     revoked_at: data.revoked_at ? (data.revoked_at as Timestamp).toDate() : null,
   };
 }
 
-export async function create(token: string, screenName: string, createdBy: string): Promise<void> {
+export async function create(token: string, screenName: string, ownerUid: string): Promise<void> {
   await col().doc(token).set({
     token,
     screen_name: screenName,
-    created_by: createdBy,
+    owner_uid: ownerUid,
     revoked_at: null,
     created_at: FieldValue.serverTimestamp(),
   });

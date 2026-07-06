@@ -13,20 +13,21 @@ const CONTENT_TYPES = {
 };
 
 const THUMB_MAX_SIZE = 400;
+const OWNER_UID = process.env.OWNER_UID;
 
 // r2_backup_url が未設定のレコードをバッチでバックアップ
 export async function backupPending(batchSize) {
-  const rows = await listPendingBackup(batchSize);
+  const rows = await listPendingBackup(OWNER_UID, batchSize);
 
   let ok = 0;
   for (const row of rows) {
     try {
       const relativeUrl = await backupOne(row);
-      await markBackedUp(row.media_key, relativeUrl);
+      await markBackedUp(OWNER_UID, row.media_key, relativeUrl);
       ok++;
     } catch (err) {
       console.warn(`[backup] failed ${row.media_key}: ${err.message}`);
-      await markBackupFailed(row.media_key);
+      await markBackupFailed(OWNER_UID, row.media_key);
     }
   }
   if (rows.length > 0) {

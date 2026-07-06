@@ -3,7 +3,7 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { deleteAllMediaForXUserId } from './media';
 import { deleteAllShareLinksForScreenName } from './shareLinks';
 
-const col = () => db.collection('target_accounts');
+const col = (uid: string) => db.collection('users').doc(uid).collection('targetAccounts');
 
 export type TargetAccount = {
   screen_name: string;
@@ -29,10 +29,10 @@ function fromSnap(snap: FirebaseFirestore.DocumentSnapshot): TargetAccount | nul
   };
 }
 
-// target_accounts はユーザー間で共有。無ければデフォルト値で作成、既にあれば何もしない
+// 無ければデフォルト値で作成、既にあれば何もしない
 // (Postgres の INSERT ... ON CONFLICT (screen_name) DO NOTHING 相当)
-export async function createIfNotExists(screenName: string): Promise<void> {
-  const ref = col().doc(screenName);
+export async function createIfNotExists(uid: string, screenName: string): Promise<void> {
+  const ref = col(uid).doc(screenName);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (snap.exists) return;
@@ -48,13 +48,13 @@ export async function createIfNotExists(screenName: string): Promise<void> {
   });
 }
 
-export async function get(screenName: string): Promise<TargetAccount | null> {
-  return fromSnap(await col().doc(screenName).get());
+export async function get(uid: string, screenName: string): Promise<TargetAccount | null> {
+  return fromSnap(await col(uid).doc(screenName).get());
 }
 
-export async function getMany(screenNames: string[]): Promise<Map<string, TargetAccount>> {
+export async function getMany(uid: string, screenNames: string[]): Promise<Map<string, TargetAccount>> {
   if (screenNames.length === 0) return new Map();
-  const refs = screenNames.map((s) => col().doc(s));
+  const refs = screenNames.map((s) => col(uid).doc(s));
   const snaps = await db.getAll(...refs);
   const out = new Map<string, TargetAccount>();
   snaps.forEach((snap) => {
@@ -64,21 +64,34 @@ export async function getMany(screenNames: string[]): Promise<Map<string, Target
   return out;
 }
 
-export async function listUnresolved(): Promise<TargetAccount[]> {
-  const snap = await col().where('x_user_id', '==', null).get();
+// ログインユーザーの推しリスト全件
+export async function listAll(uid: string): Promise<TargetAccount[]> {
+  const snap = await col(uid).orderBy('created_at', 'asc').get();
   return snap.docs.map((d) => fromSnap(d)!).filter(Boolean);
 }
 
-export async function setXUserId(screenName: string, xUserId: string): Promise<void> {
-  await col().doc(screenName).update({ x_user_id: xUserId });
+// ログインユーザーの推しリストのうち、x_user_id解決済みのものだけ
+export async function listXUserIds(uid: string): Promise<string[]> {
+  const accounts = await listAll(uid);
+  return accounts.map((a) => a.x_user_id).filter((id): id is string => id !== null);
 }
 
-export async function listResolved(): Promise<TargetAccount[]> {
-  const snap = await col().where('x_user_id', '!=', null).get();
+export async function listUnresolved(uid: string): Promise<TargetAccount[]> {
+  const snap = await col(uid).where('x_user_id', '==', null).get();
+  return snap.docs.map((d) => fromSnap(d)!).filter(Boolean);
+}
+
+export async function setXUserId(uid: string, screenName: string, xUserId: string): Promise<void> {
+  await col(uid).doc(screenName).update({ x_user_id: xUserId });
+}
+
+export async function listResolved(uid: string): Promise<TargetAccount[]> {
+  const snap = await col(uid).where('x_user_id', '!=', null).get();
   return snap.docs.map((d) => fromSnap(d)!).filter(Boolean);
 }
 
 export async function updateAfterCollect(
+  uid: string,
   screenName: string,
   update: { last_fetched_id?: string; checked_at?: boolean; backfill_cursor?: string }
 ): Promise<void> {
@@ -87,12 +100,12 @@ export async function updateAfterCollect(
   if (update.checked_at) payload.checked_at = FieldValue.serverTimestamp();
   if (update.backfill_cursor !== undefined) payload.backfill_cursor = update.backfill_cursor;
   if (Object.keys(payload).length === 0) return;
-  await col().doc(screenName).update(payload);
+  await col(uid).doc(screenName).update(payload);
 }
 
 // 初回クロール時のみ backfill_cursor を設定する（既に値がある場合は上書きしない）
-export async function setBackfillCursorIfEmpty(screenName: string, oldestId: string): Promise<void> {
-  const ref = col().doc(screenName);
+export async function setBackfillCursorIfEmpty(uid: string, screenName: string, oldestId: string): Promise<void> {
+  const ref = col(uid).doc(screenName);
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists || snap.data()!.backfill_cursor) return;
@@ -101,32 +114,33 @@ export async function setBackfillCursorIfEmpty(screenName: string, oldestId: str
 }
 
 // x_user_id を指定すると、そのアカウントだけに絞る（画面でユーザー絞り込み中の手動実行用）
-export async function listForBackfill(xUserId?: string): Promise<TargetAccount[]> {
-  let query = col().where('x_user_id', '!=', null).where('backfill_done', '==', false);
+export async function listForBackfill(uid: string, xUserId?: string): Promise<TargetAccount[]> {
+  let query = col(uid).where('x_user_id', '!=', null).where('backfill_done', '==', false);
   if (xUserId) {
-    query = col().where('x_user_id', '==', xUserId).where('backfill_done', '==', false);
+    query = col(uid).where('x_user_id', '==', xUserId).where('backfill_done', '==', false);
   }
   const snap = await query.get();
   return snap.docs.map((d) => fromSnap(d)!).filter(Boolean);
 }
 
 export async function updateBackfill(
+  uid: string,
   screenName: string,
   update: { backfill_cursor: string | null; backfill_done: boolean }
 ): Promise<void> {
   const payload: Record<string, unknown> = { backfill_done: update.backfill_done };
   if (update.backfill_cursor) payload.backfill_cursor = update.backfill_cursor;
-  await col().doc(screenName).update(payload);
+  await col(uid).doc(screenName).update(payload);
 }
 
 // target_accounts 削除。media_assets(x_user_id)・share_links(screen_name) を
 // 先にカスケード削除してから本体を消す（PostgresのON DELETE CASCADE相当を手動実装）
-export async function deleteCascade(screenName: string): Promise<void> {
-  const account = await get(screenName);
+export async function deleteCascade(uid: string, screenName: string): Promise<void> {
+  const account = await get(uid, screenName);
   if (!account) return;
   if (account.x_user_id) {
-    await deleteAllMediaForXUserId(account.x_user_id);
+    await deleteAllMediaForXUserId(uid, account.x_user_id);
   }
   await deleteAllShareLinksForScreenName(screenName);
-  await col().doc(screenName).delete();
+  await col(uid).doc(screenName).delete();
 }

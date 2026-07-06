@@ -1,7 +1,7 @@
 {
   "indexes": [
     {
-      "collectionGroup": "media_assets",
+      "collectionGroup": "mediaAssets",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "x_user_id", "order": "ASCENDING" },
@@ -11,7 +11,7 @@
       ]
     },
     {
-      "collectionGroup": "media_assets",
+      "collectionGroup": "mediaAssets",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "x_user_id", "order": "ASCENDING" },
@@ -22,7 +22,7 @@
       ]
     },
     {
-      "collectionGroup": "media_assets",
+      "collectionGroup": "mediaAssets",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "backed_up", "order": "ASCENDING" },
@@ -30,7 +30,7 @@
       ]
     },
     {
-      "collectionGroup": "media_assets",
+      "collectionGroup": "mediaAssets",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "backed_up", "order": "ASCENDING" },
@@ -40,7 +40,7 @@
       ]
     },
     {
-      "collectionGroup": "media_assets",
+      "collectionGroup": "mediaAssets",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "x_user_id", "order": "ASCENDING" },
@@ -48,7 +48,7 @@
       ]
     },
     {
-      "collectionGroup": "target_accounts",
+      "collectionGroup": "targetAccounts",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "x_user_id", "order": "ASCENDING" },
@@ -65,15 +65,7 @@
       ]
     },
     {
-      "collectionGroup": "user_subscriptions",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "user_email", "order": "ASCENDING" },
-        { "fieldPath": "created_at", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "api_usage_log",
+      "collectionGroup": "apiUsageLog",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "purpose", "order": "ASCENDING" },

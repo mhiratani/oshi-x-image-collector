@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { workerState } from '@/worker/state.js';
 import { runBackfillOnce } from '@/worker/batch.js';
-import { getSubscribedAccounts } from '@/lib/repo/userAccounts';
+import * as targetAccounts from '@/lib/repo/targetAccounts';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,10 +11,10 @@ export const dynamic = 'force-dynamic';
 // allDone: 自分の推しリスト（?account= 指定時はそのアカウントのみ）が過去を掘り尽くしたか
 export async function GET(req: Request) {
   const session = await auth();
-  const userEmail = session!.user!.email!;
+  const uid = session!.user!.uid!;
   const account = new URL(req.url).searchParams.get('account');
 
-  const accounts = await getSubscribedAccounts(userEmail);
+  const accounts = await targetAccounts.listAll(uid);
   const resolved = accounts.filter(
     (a) => a.x_user_id !== null && (!account || a.x_user_id === account)
   );

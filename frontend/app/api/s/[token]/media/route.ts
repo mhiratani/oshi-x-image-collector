@@ -23,7 +23,7 @@ export async function GET(
   if (!link || link.revoked_at) {
     return NextResponse.json({ error: 'リンクが無効です' }, { status: 404 });
   }
-  const account = await targetAccounts.get(link.screen_name);
+  const account = await targetAccounts.get(link.owner_uid, link.screen_name);
   if (!account?.x_user_id) {
     return NextResponse.json({ error: 'リンクが無効です' }, { status: 404 });
   }
@@ -32,7 +32,13 @@ export async function GET(
   const cursor = parseCursor(searchParams.get('cursor'));
   const faceOnly = searchParams.get('faceOnly') === 'true';
 
-  const rows = await listMedia({ xUserIds: [account.x_user_id], faceOnly, cursor, limit: MEDIA_PAGE_SIZE });
+  const rows = await listMedia({
+    uid: link.owner_uid,
+    xUserIds: [account.x_user_id],
+    faceOnly,
+    cursor,
+    limit: MEDIA_PAGE_SIZE,
+  });
   const items = rows.map((m) => ({
     media_key: m.media_key,
     tweet_id: m.tweet_id,

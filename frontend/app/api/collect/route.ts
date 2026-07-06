@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { workerState } from '@/worker/state.js';
 import { runCollectOnce } from '@/worker/batch.js';
-import { getSubscribedAccounts } from '@/lib/repo/userAccounts';
+import * as targetAccounts from '@/lib/repo/targetAccounts';
 import { countUnrevealed } from '@/lib/repo/media';
 
 export const dynamic = 'force-dynamic';
@@ -10,12 +10,12 @@ export const dynamic = 'force-dynamic';
 // GET /api/collect — ログインユーザーの推しリストにおける新着チェック結果とバッチの実行状態
 export async function GET() {
   const session = await auth();
-  const userEmail = session!.user!.email!;
+  const uid = session!.user!.uid!;
 
-  const accounts = await getSubscribedAccounts(userEmail);
+  const accounts = await targetAccounts.listAll(uid);
   const resolvedXUserIds = accounts.map((a) => a.x_user_id).filter((id): id is string => id !== null);
 
-  const totalPending = await countUnrevealed(resolvedXUserIds);
+  const totalPending = await countUnrevealed(uid, resolvedXUserIds);
   const needsInitial = accounts.filter((a) => a.x_user_id !== null && a.last_fetched_id === null).length;
   const unresolved = accounts.filter((a) => a.x_user_id === null).length;
 

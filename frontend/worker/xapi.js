@@ -4,6 +4,7 @@ import { logUsage as logUsageToFirestore } from '@/lib/repo/apiUsage';
 const API_BASE = 'https://api.twitter.com/2';
 
 const BEARER = process.env.X_BEARER_TOKEN;
+const OWNER_UID = process.env.OWNER_UID;
 
 // X APIは従量課金（返却リソース件数に応じた課金）。
 // 単価は docker-compose.yml の環境変数で定義（改定時はそちらを更新）。
@@ -17,7 +18,7 @@ const UNIT_COST_USD = {
 async function logUsage({ purpose, endpoint, screenName, resource, quantity }) {
   const unitCost = UNIT_COST_USD[resource];
   try {
-    await logUsageToFirestore({
+    await logUsageToFirestore(OWNER_UID, {
       purpose,
       endpoint,
       screenName: screenName ?? null,

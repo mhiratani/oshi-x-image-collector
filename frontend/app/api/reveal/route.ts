@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { revealAll } from '@/lib/repo/media';
-import { getSubscribedXUserIds } from '@/lib/repo/userAccounts';
+import * as targetAccounts from '@/lib/repo/targetAccounts';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,9 +9,9 @@ export const dynamic = 'force-dynamic';
 // ログインユーザーの推しリストの範囲でまとめて公開する（X APIは呼ばない）
 export async function POST() {
   const session = await auth();
-  const userEmail = session!.user!.email!;
+  const uid = session!.user!.uid!;
 
-  const xUserIds = await getSubscribedXUserIds(userEmail);
-  await revealAll(xUserIds);
+  const xUserIds = await targetAccounts.listXUserIds(uid);
+  await revealAll(uid, xUserIds);
   return NextResponse.json({ ok: true });
 }

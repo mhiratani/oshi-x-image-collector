@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
-import { auth, signIn } from '@/auth';
+import { auth } from '@/auth';
+import LoginButton from './LoginButton';
 
 export default async function LoginPage() {
   const session = await auth();
@@ -7,16 +8,7 @@ export default async function LoginPage() {
 
   return (
     <div style={{ display: 'grid', placeItems: 'center', minHeight: '70vh' }}>
-      <form
-        action={async () => {
-          'use server';
-          await signIn('pocketid', { redirectTo: '/' });
-        }}
-      >
-        <button className="primary" type="submit">
-          ログイン
-        </button>
-      </form>
+      <LoginButton />
     </div>
   );
 }

@@ -15,6 +15,7 @@ const BACKUP_BATCH_SIZE = Number(process.env.BACKUP_BATCH_SIZE ?? 50);
 const FACE_BATCH_SIZE = Number(process.env.FACE_BATCH_SIZE ?? 20);
 const BACKFILL = (process.env.BACKFILL ?? 'false') === 'true';
 const BACKFILL_PAGES = Number(process.env.BACKFILL_PAGES ?? 5);
+const OWNER_UID = process.env.OWNER_UID;
 
 function recordError(phase, screenName, err) {
   workerState.lastError = `[${phase}] @${screenName}: ${err.message.slice(0, 300)}`;
@@ -48,12 +49,12 @@ export async function runBatch() {
 
 // screen_name だけ登録されたアカウントの x_user_id を解決
 async function resolvePendingUserIds() {
-  const accounts = await targetAccounts.listUnresolved();
+  const accounts = await targetAccounts.listUnresolved(OWNER_UID);
   for (const { screen_name } of accounts) {
     try {
       const id = await resolveUserId(screen_name);
       if (id) {
-        await targetAccounts.setXUserId(screen_name, id);
+        await targetAccounts.setXUserId(OWNER_UID, screen_name, id);
         console.log(`[resolve] @${screen_name} -> ${id}`);
       } else {
         console.warn(`[resolve] @${screen_name} not found on X`);
@@ -69,7 +70,7 @@ async function resolvePendingUserIds() {
 // 初回クロールは取得したその場で画面に出す(revealed=true)が、既にlast_fetched_idが
 // あった＝定期実行での差分取得は revealed=false で保存し、ボタン押下時の公開を待つ
 async function collectAllAccounts() {
-  const accounts = await targetAccounts.listResolved();
+  const accounts = await targetAccounts.listResolved(OWNER_UID);
 
   for (const account of accounts) {
     try {
@@ -82,22 +83,22 @@ async function collectAllAccounts() {
       });
 
       // 途中でエラーになっても取得済みページ分は保存する
-      await media.insertMediaBatch(fetched, account.x_user_id, isInitialCrawl);
+      await media.insertMediaBatch(OWNER_UID, fetched, account.x_user_id, isInitialCrawl);
 
       // 途中エラー時は last_fetched_id を進めない
       // （進めると未取得の中間ページが二度と取れなくなるため）
       if (!error && newestId) {
-        await targetAccounts.updateAfterCollect(account.screen_name, {
+        await targetAccounts.updateAfterCollect(OWNER_UID, account.screen_name, {
           last_fetched_id: newestId,
           checked_at: true,
         });
       } else if (!error) {
         // 新着なし: チェック済みフラグだけ更新
-        await targetAccounts.updateAfterCollect(account.screen_name, { checked_at: true });
+        await targetAccounts.updateAfterCollect(OWNER_UID, account.screen_name, { checked_at: true });
       }
       // 初回クロール時は「どこまで遡ったか」をバックフィルの起点として記録
       if (!account.last_fetched_id && oldestId) {
-        await targetAccounts.setBackfillCursorIfEmpty(account.screen_name, oldestId);
+        await targetAccounts.setBackfillCursorIfEmpty(OWNER_UID, account.screen_name, oldestId);
       }
       console.log(`[collect] @${account.screen_name}: ${fetched.length} new photos`);
 
@@ -119,7 +120,7 @@ async function collectAllAccounts() {
 // 以降このアカウントではAPIを呼ばない。
 // xUserId を指定すると、そのアカウントだけを対象にする（画面でユーザー絞り込み中の手動実行用）
 async function backfillAllAccounts(xUserId) {
-  const accounts = await targetAccounts.listForBackfill(xUserId);
+  const accounts = await targetAccounts.listForBackfill(OWNER_UID, xUserId);
 
   // 画面に「◯/◯件取得中」を出すための目安。実際にはアカウントごとに
   // 遡り切って途中で終わることもあるため、あくまで上限値
@@ -130,7 +131,7 @@ async function backfillAllAccounts(xUserId) {
       // 旧バージョンで収集済みなどで cursor が無い場合は保存済み最古ツイートから
       let untilId = account.backfill_cursor;
       if (!untilId) {
-        untilId = await media.getOldestTweetId(account.x_user_id);
+        untilId = await media.getOldestTweetId(OWNER_UID, account.x_user_id);
       }
 
       const { media: fetched, oldestId, exhausted, error } = await fetchPhotoMedia({
@@ -146,9 +147,9 @@ async function backfillAllAccounts(xUserId) {
       // 途中でエラーになっても取得済みページ分は保存し、カーソルも進める
       // （バックフィルは古い方向に進むだけなので部分成功でも整合する）。
       // ユーザーが明示的に押した操作なので即座に公開する
-      await media.insertMediaBatch(fetched, account.x_user_id, true);
+      await media.insertMediaBatch(OWNER_UID, fetched, account.x_user_id, true);
 
-      await targetAccounts.updateBackfill(account.screen_name, {
+      await targetAccounts.updateBackfill(OWNER_UID, account.screen_name, {
         backfill_cursor: oldestId ?? untilId,
         backfill_done: exhausted && !error,
       });

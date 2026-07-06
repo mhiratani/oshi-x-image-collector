@@ -1,19 +1,22 @@
 import { db } from '@/lib/firestore';
 import { AggregateField, FieldValue, Timestamp } from 'firebase-admin/firestore';
 
-const col = () => db.collection('api_usage_log');
+const col = (uid: string) => db.collection('users').doc(uid).collection('apiUsageLog');
 
 const PURPOSES = ['resolve', 'check', 'collect', 'backfill'] as const;
 
-export async function logUsage(entry: {
-  purpose: string;
-  endpoint: string;
-  screenName: string | null;
-  resource: string;
-  quantity: number;
-  unitCostUsd: number;
-}): Promise<void> {
-  await col().add({
+export async function logUsage(
+  uid: string,
+  entry: {
+    purpose: string;
+    endpoint: string;
+    screenName: string | null;
+    resource: string;
+    quantity: number;
+    unitCostUsd: number;
+  }
+): Promise<void> {
+  await col(uid).add({
     called_at: FieldValue.serverTimestamp(),
     purpose: entry.purpose,
     endpoint: entry.endpoint,
@@ -66,19 +69,19 @@ export type UsageStats = {
 // 当日/当月/全期間の合計はFirestoreの集計クエリ(count/sum)で1読み取りずつ求め、
 // 日次・月次の内訳は直近12ヶ月分の生ドキュメントを1回だけ取得してJS側で
 // 日付バケットに振り分ける（Firestoreに generate_series/GROUP BY 相当が無いため）
-export async function getUsageStats(): Promise<UsageStats> {
+export async function getUsageStats(uid: string): Promise<UsageStats> {
   const now = new Date();
   const todayStart = startOfUtcDay(now);
   const monthStart = startOfUtcMonth(now);
   const twelveMonthsAgo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1));
 
   const [allTimeAgg, todayAgg, monthAgg, recentSnap, rangeSnap, ...byPurposeAgg] = await Promise.all([
-    col().aggregate({ cost: AggregateField.sum('cost_usd') }).get(),
-    col()
+    col(uid).aggregate({ cost: AggregateField.sum('cost_usd') }).get(),
+    col(uid)
       .where('called_at', '>=', Timestamp.fromDate(todayStart))
       .aggregate({ cost: AggregateField.sum('cost_usd') })
       .get(),
-    col()
+    col(uid)
       .where('called_at', '>=', Timestamp.fromDate(monthStart))
       .aggregate({
         cost: AggregateField.sum('cost_usd'),
@@ -86,10 +89,10 @@ export async function getUsageStats(): Promise<UsageStats> {
         calls: AggregateField.count(),
       })
       .get(),
-    col().orderBy('called_at', 'desc').limit(50).get(),
-    col().where('called_at', '>=', Timestamp.fromDate(twelveMonthsAgo)).orderBy('called_at', 'asc').get(),
+    col(uid).orderBy('called_at', 'desc').limit(50).get(),
+    col(uid).where('called_at', '>=', Timestamp.fromDate(twelveMonthsAgo)).orderBy('called_at', 'asc').get(),
     ...PURPOSES.map((purpose) =>
-      col()
+      col(uid)
         .where('called_at', '>=', Timestamp.fromDate(monthStart))
         .where('purpose', '==', purpose)
         .aggregate({

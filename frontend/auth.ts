@@ -1,16 +1,40 @@
 import NextAuth from 'next-auth';
-import { upsertAppUser } from '@/lib/repo/appUsers';
+import Credentials from 'next-auth/providers/credentials';
 import { authConfig } from './auth.config';
+import { verifyFirebaseIdToken } from '@/lib/auth/verifyFirebaseIdToken';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  providers: [
+    Credentials({
+      id: 'firebase',
+      name: 'Firebase',
+      credentials: { idToken: { label: 'idToken', type: 'text' } },
+      async authorize(credentials) {
+        const idToken = credentials?.idToken;
+        if (typeof idToken !== 'string' || !idToken) return null;
+        try {
+          const decoded = await verifyFirebaseIdToken(idToken);
+          return { id: decoded.uid, email: decoded.email ?? null, name: decoded.name ?? null };
+        } catch {
+          return null;
+        }
+      },
+    }),
+  ],
   callbacks: {
-    // ログイン成功時にapp_usersへupsert（推しリストの持ち主をemailで紐づけるため）
-    // ここはNode.jsランタイムでしか実行されない（route handler等）ので firebase-admin を使ってよい
+    // 本人(Android版で確認済みのFirebase uid)以外のGoogleアカウントでのサインインを拒否する。
+    // Google Sign-Inは任意のGoogleアカウントを受け付けてしまうため、これが唯一のアクセス制御になる。
     async signIn({ user }) {
-      if (!user.email) return false;
-      await upsertAppUser(user.email, user.name);
-      return true;
+      return user.id === process.env.OWNER_UID;
+    },
+    async jwt({ token, user }) {
+      if (user) token.uid = user.id;
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) session.user.uid = token.uid as string;
+      return session;
     },
   },
 });

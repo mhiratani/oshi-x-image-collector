@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { listMedia, type MediaCursor } from '@/lib/repo/media';
-import { getSubscribedAccounts } from '@/lib/repo/userAccounts';
+import * as targetAccounts from '@/lib/repo/targetAccounts';
 import { MEDIA_PAGE_SIZE, nextCursorFor } from '@/lib/mediaQuery';
 
 export const dynamic = 'force-dynamic';
@@ -18,14 +18,14 @@ function parseCursor(cursor: string | null): MediaCursor | null {
 // ログインユーザーが推しリストに入れているアカウントの画像のみ返す。
 export async function GET(req: NextRequest) {
   const session = await auth();
-  const userEmail = session!.user!.email!;
+  const uid = session!.user!.uid!;
 
   const { searchParams } = req.nextUrl;
   const cursor = parseCursor(searchParams.get('cursor'));
   const accountFilter = searchParams.get('account')?.split(',').filter(Boolean) ?? [];
   const faceOnly = searchParams.get('faceOnly') === 'true';
 
-  const accounts = await getSubscribedAccounts(userEmail);
+  const accounts = await targetAccounts.listAll(uid);
   const screenNameByXUserId = new Map(accounts.map((a) => [a.x_user_id, a.screen_name]));
   let xUserIds = accounts.map((a) => a.x_user_id).filter((id): id is string => id !== null);
   if (accountFilter.length > 0) {
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     xUserIds = xUserIds.filter((id) => allowed.has(id));
   }
 
-  const rows = await listMedia({ xUserIds, faceOnly, cursor, limit: MEDIA_PAGE_SIZE });
+  const rows = await listMedia({ uid, xUserIds, faceOnly, cursor, limit: MEDIA_PAGE_SIZE });
   const items = rows.map((m) => ({
     media_key: m.media_key,
     tweet_id: m.tweet_id,
@@ -41,7 +41,6 @@ export async function GET(req: NextRequest) {
     x_cdn_url: m.x_cdn_url,
     r2_backup_url: m.r2_backup_url,
     posted_at: m.posted_at,
-    ml_tags: m.ml_tags,
     is_face: m.is_face,
     screen_name: screenNameByXUserId.get(m.x_user_id) ?? null,
   }));

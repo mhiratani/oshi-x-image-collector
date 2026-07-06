@@ -1,5 +1,5 @@
-import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { ensureFirebaseAdminApp } from '@/lib/firebaseAdmin';
 
 // Next.js のホットリロードでアプリ/クライアントが増殖しないように global に保持
 const globalForFirebase = globalThis as unknown as {
@@ -7,16 +7,7 @@ const globalForFirebase = globalThis as unknown as {
 };
 
 function initFirestore(): FirebaseFirestore.Firestore {
-  if (getApps().length === 0) {
-    initializeApp({
-      credential: cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        // .env には改行を \n エスケープした1行文字列で保存するため復元する
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      }),
-    });
-  }
+  ensureFirebaseAdminApp();
   return getFirestore();
 }
 

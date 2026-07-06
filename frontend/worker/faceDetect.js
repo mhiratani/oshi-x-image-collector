@@ -9,6 +9,7 @@ import { getObjectBuffer } from '@/lib/r2';
 import { listPendingFaceDetection, markFaceResult } from '@/lib/repo/media';
 
 const INPUT_SIZE = 256;
+const OWNER_UID = process.env.OWNER_UID;
 
 let modelPromise = null;
 function getModel() {
@@ -44,7 +45,7 @@ async function detectOne(model, r2BackupUrl) {
 
 // 未判定(is_face IS NULL)かつバックアップ済み、かつ手動レビュー未実施の画像を判定する
 export async function detectFaces(batchSize) {
-  const rows = await listPendingFaceDetection(batchSize);
+  const rows = await listPendingFaceDetection(OWNER_UID, batchSize);
   if (rows.length === 0) return 0;
 
   const model = await getModel();
@@ -52,7 +53,7 @@ export async function detectFaces(batchSize) {
   for (const row of rows) {
     try {
       const { isFace, confidence } = await detectOne(model, row.r2_backup_url);
-      await markFaceResult(row.media_key, isFace, confidence);
+      await markFaceResult(OWNER_UID, row.media_key, isFace, confidence);
       ok++;
     } catch (err) {
       console.warn(`[face] failed ${row.media_key}: ${err.message}`);
