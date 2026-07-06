@@ -5,3 +5,6 @@ node_modules/
 backup-data/
 frontend/tsconfig.tsbuildinfo
 frontend/firestore-debug.log
+
+# android app
+android-app/.idea

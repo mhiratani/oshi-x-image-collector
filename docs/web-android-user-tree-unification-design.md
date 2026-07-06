@@ -1,8 +1,8 @@
 # Web/Android Firestore統一 + Web版Google認証化 設計書
 
-## 実装状況(2026-07-06時点、クレジット切れのため中断)
+## 実装状況(2026-07-06時点)
 
-**Web側は実装完了、Android側は未着手。** 次回再開時はAndroid側(下記チェックリストの未完了部分)から着手する。
+**Web側・Android側ともに実装完了。** 残るのはカットオーバー手順(下記「実施順序」節)の実施のみ。
 
 完了:
 - Web: Firebase Auth移行一式(`auth.config.ts`/`auth.ts`/`lib/firebaseAdmin.ts`(新規)/`lib/auth/verifyFirebaseIdToken.ts`(新規)/`lib/firebaseClient.ts`(新規)/`types/next-auth.d.ts`(新規)/`app/(app)/login/page.tsx`+`LoginButton.tsx`(新規)/`package.json`に`firebase`追加)
@@ -12,16 +12,16 @@
 - Web: `firestore.indexes.json`のcollectionGroup名リネーム(`targetAccounts`/`mediaAssets`/`apiUsageLog`)、`user_subscriptions`インデックス削除。
 - Web: `frontend/scripts/migrate-to-user-tree.mjs`(新規、Firestore→Firestore移行スクリプト)作成済み。
 - Web: `.env.example`/`docker-compose.yml`のOIDC_*削除、`NEXT_PUBLIC_FIREBASE_*`/`OWNER_UID`追加。
+- Android: `FirestoreMirror.kt`のsnake_case+Timestamp+merge化。`backed_up`/`backup_attempts`/`face_reviewed`/`revealed`(常にtrue固定)/`backfill_cursor`/`backfill_done`を読み書き対応。`logApiUsage()`追加。
+- Android: バックフィル機能。`XApiClient.kt`に`untilId`/`onPage`パラメータ追加、`FetchPhotoMediaResult.oldestId`追加。`TargetAccountEntity.kt`に`backfillCursor`/`backfillDone`追加、`AppDatabase`をv2→v3(`MIGRATION_2_3`でカラム追加)。`MediaRepository.backfillAll()`新設。`AccountsScreen`に「過去の投稿を読み込む」ボタン追加(`backfillDone`のアカウントのみ表示・完了時は一覧が非表示化)。
+- Android: 同期アイコン。`TargetAccountDao.upsert/upsertAll`、`MediaAssetDao.updateCloudFields/getExistingMediaKeys/getOldestTweetId`追加。`MediaRepository.restoreFromCloud()`を既存行の上書きにも対応するよう拡張(オンボーディング初回復元・設定画面「クラウドから復元」・トップバー同期アイコンの3箇所から共通で呼ばれる一本化実装)。`MediaListScreen`のTopAppBarに`Icons.Filled.Sync`アイコン追加。
+- Android: API使用量ログ。`FirestoreMirror.logApiUsage()`(Web版と同じ単価定数)。`MediaRepository.refreshAll()`/`backfillAll()`の`resolveUserId`/`fetchPhotoMedia`呼び出し後にそれぞれ記録。
+- Android: `./gradlew clean compileDebugKotlin`でBUILD SUCCESSFULを確認済み(警告のみ、`SecureSettings.kt`のEncryptedSharedPreferences非推奨警告は既存分)。
 
-**未検証**: この環境にNode.js/npmが無く型チェック・ビルドを実行できていない。次回、Docker(`docker build --target builder ./frontend`等)かNode環境で`next build`相当の型チェックを一度通すこと。特に`next-auth/providers/credentials`のインポート・`auth.ts`のCredentialsプロバイダの型、`firebase`パッケージの新規追加分。
+**未検証**: この環境にNode.js/npmが無くWeb側の型チェック・ビルドを実行できていない。次回、Docker(`docker build --target builder ./frontend`等)かNode環境で`next build`相当の型チェックを一度通すこと。特に`next-auth/providers/credentials`のインポート・`auth.ts`のCredentialsプロバイダの型、`firebase`パッケージの新規追加分。
 
-未着手(Android側、docs内の該当節を参照して実装する):
-- [ ] `FirestoreMirror.kt`のsnake_case+Timestamp+merge化、`backed_up`/`backup_attempts`/`face_reviewed`/`revealed`/`backfill_cursor`/`backfill_done`追加
-- [ ] バックフィル機能(`XApiClient.kt`のuntilId対応、`TargetAccountEntity.kt`+Room migration v2→v3、`MediaRepository.backfillAll()`、UI「過去の投稿を読み込む」ボタン)
-- [ ] 同期アイコン(TopAppBar)とupsert同期(`TargetAccountDao`/`MediaAssetDao`のupsertメソッド、`restoreFromCloud()`拡張)
-- [ ] API使用量ログ(`FirestoreMirror.logApiUsage()`、`XApiClient`呼び出し箇所からの呼び出し)
+次回はカットオーバー手順(下記「実施順序」節)に着手する。特に手順1(Android版で一度サインインしuid確認)は新スキーマ対応済みのAndroid版で実行してよい。
 
-カットオーバー手順(下記「実施順序」節)はAndroid側完了後に着手すること。特に手順1(Android版で一度サインインしuid確認)は現行の(まだ新スキーマ対応していない)Android版でも実行可能だが、Web版デプロイ・移行スクリプト実行はAndroid側のコード変更が終わってからの方が安全。
 
 ## Context
 

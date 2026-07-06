@@ -27,13 +27,13 @@ import kotlinx.coroutines.sync.withPermit
  * design.md 3.1.1/3.1.2のデータフローに対応する。
  */
 class MediaRepository(context: Context) {
-    /** クラウドバックアップからの復元の進捗状態。 */
+    /** クラウドバックアップからの復元/同期の進捗状態。 */
     sealed interface RestoreProgress {
         data object FetchingMetadata : RestoreProgress
         data class DownloadingImages(val completed: Int, val total: Int) : RestoreProgress
     }
 
-    /** クラウドバックアップからの復元結果のサマリー。 */
+    /** クラウドバックアップからの復元/同期結果のサマリー。 */
     data class RestoreResult(
         val accountsRestored: Int,
         val mediaRowsRestored: Int,
@@ -97,17 +97,116 @@ class MediaRepository(context: Context) {
 
         for (account in targetAccountDao.getAll()) {
             try {
-                val xUserId = account.xUserId ?: client.resolveUserId(account.screenName)?.also { resolved ->
-                    targetAccountDao.update(account.copy(xUserId = resolved))
-                } ?: run {
-                    Log.w(TAG, "resolveUserId failed for @${account.screenName}")
-                    continue
-                }
+                val isInitialCrawl = account.lastFetchedId == null
 
+                val xUserId = account.xUserId ?: run {
+                    val resolved = client.resolveUserId(account.screenName)
+                    firestoreMirror.logApiUsage(
+                        purpose = "resolve",
+                        endpoint = "users/by/username/:screen_name",
+                        screenName = account.screenName,
+                        resource = "user_read",
+                        quantity = if (resolved != null) 1 else 0
+                    )
+                    if (resolved != null) {
+                        targetAccountDao.update(account.copy(xUserId = resolved))
+                    } else {
+                        Log.w(TAG, "resolveUserId failed for @${account.screenName}")
+                    }
+                    resolved
+                } ?: continue
+
+                var tweetsCount = 0
                 val result = client.fetchPhotoMedia(
                     userId = xUserId,
                     sinceId = account.lastFetchedId,
-                    maxPages = maxPagesPerAccount
+                    maxPages = maxPagesPerAccount,
+                    onPage = { n -> tweetsCount += n }
+                )
+                firestoreMirror.logApiUsage(
+                    purpose = "collect",
+                    endpoint = "users/:id/tweets",
+                    screenName = account.screenName,
+                    resource = "posts_read",
+                    quantity = tweetsCount
+                )
+
+                val newEntities = result.media.map { photo ->
+                    val localPath = runCatching { imageStorage.download(photo.mediaKey, photo.url) }.getOrNull()
+                    val faceResult = localPath
+                        ?.let { FaceDetector.detect(File(it)) }
+                        as? FaceDetector.Result.Detected
+                    MediaAssetEntity(
+                        mediaKey = photo.mediaKey,
+                        tweetId = photo.tweetId,
+                        xUserId = xUserId,
+                        xCdnUrl = photo.url,
+                        localImagePath = localPath,
+                        r2BackupUrl = null,
+                        postedAt = photo.postedAt,
+                        createdAt = System.currentTimeMillis(),
+                        isFace = faceResult?.isFace,
+                        faceConfidence = faceResult?.confidence
+                    )
+                }
+                if (newEntities.isNotEmpty()) {
+                    mediaAssetDao.insertAll(newEntities)
+                }
+
+                var updatedAccount = account.copy(
+                    xUserId = xUserId,
+                    lastFetchedId = result.newestId ?: account.lastFetchedId,
+                    lastCheckedAt = System.currentTimeMillis()
+                )
+                // 初回クロール時は「どこまで遡ったか」をバックフィルの起点として記録
+                // （Web版のsetBackfillCursorIfEmpty相当。既に値がある場合は上書きしない）
+                if (isInitialCrawl && account.backfillCursor == null && result.oldestId != null) {
+                    updatedAccount = updatedAccount.copy(backfillCursor = result.oldestId)
+                }
+                targetAccountDao.update(updatedAccount)
+
+                if (backupEnabled) {
+                    firestoreMirror.mirrorTargetAccount(updatedAccount)
+                    firestoreMirror.mirrorMediaAssets(newEntities)
+                    backupImages(newEntities)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "refresh failed for @${account.screenName}", e)
+            }
+        }
+
+        detectPendingFaces(backupEnabled)
+    }
+
+    /**
+     * 「過去の投稿を読み込む」ボタンから呼ぶ。`backfillDone == false`の全追跡アカウントについて、
+     * 過去方向（`until_id`）に遡って投稿を取得する（Web版`worker/batch.js`のbackfillAllAccounts移植）。
+     * `backfillCursor`が空の場合はローカルDB内のそのアカウントの最古tweetIdを起点にする。
+     */
+    suspend fun backfillAll(maxPagesPerAccount: Int = 5) {
+        val client = xApiClient()
+        val backupEnabled = cloudBackupSettings.isEnabled.first()
+
+        for (account in targetAccountDao.getAll()) {
+            val xUserId = account.xUserId
+            if (xUserId == null || account.backfillDone) continue
+
+            try {
+                val untilId = account.backfillCursor ?: mediaAssetDao.getOldestTweetId(xUserId)
+
+                var tweetsCount = 0
+                val result = client.fetchPhotoMedia(
+                    userId = xUserId,
+                    untilId = untilId,
+                    maxPages = maxPagesPerAccount,
+                    onPage = { n -> tweetsCount += n }
+                )
+                firestoreMirror.logApiUsage(
+                    purpose = "backfill",
+                    endpoint = "users/:id/tweets",
+                    screenName = account.screenName,
+                    resource = "posts_read",
+                    quantity = tweetsCount
                 )
 
                 val newEntities = result.media.map { photo ->
@@ -133,9 +232,8 @@ class MediaRepository(context: Context) {
                 }
 
                 val updatedAccount = account.copy(
-                    xUserId = xUserId,
-                    lastFetchedId = result.newestId ?: account.lastFetchedId,
-                    lastCheckedAt = System.currentTimeMillis()
+                    backfillCursor = result.oldestId ?: untilId,
+                    backfillDone = result.exhausted
                 )
                 targetAccountDao.update(updatedAccount)
 
@@ -144,8 +242,14 @@ class MediaRepository(context: Context) {
                     firestoreMirror.mirrorMediaAssets(newEntities)
                     backupImages(newEntities)
                 }
+
+                Log.i(
+                    TAG,
+                    "backfill @${account.screenName}: ${newEntities.size} photos" +
+                        if (updatedAccount.backfillDone) " — 完了（これ以上過去はありません）" else " (cursor: ${updatedAccount.backfillCursor})"
+                )
             } catch (e: Exception) {
-                Log.w(TAG, "refresh failed for @${account.screenName}", e)
+                Log.w(TAG, "backfill failed for @${account.screenName}", e)
             }
         }
 
@@ -210,8 +314,12 @@ class MediaRepository(context: Context) {
     }
 
     /**
-     * クラウドバックアップからの復元。設定画面から手動で呼ぶ。
-     * 既存のローカル行は上書きしない（追加のみ）ため、途中で失敗しても再実行すれば安全に再開できる。
+     * クラウドバックアップからの復元/同期。オンボーディング初回復元、設定画面の「クラウドから復元」、
+     * トップバーの同期アイコンのいずれからも呼ばれる一本化した実装。
+     * ローカルに無い行は追加し、既存行はクラウド由来フィールドだけを上書きする
+     * （[TargetAccountEntity]は全フィールドがクラウド由来のため単純upsert、[MediaAssetEntity]は
+     * `localImagePath`/`backupAttempts`等のローカル専有フィールドを保持したまま更新する）。
+     * 途中で失敗しても再実行すれば安全に再開できる。
      */
     suspend fun restoreFromCloud(onProgress: (RestoreProgress) -> Unit = {}): RestoreResult {
         onProgress(RestoreProgress.FetchingMetadata)
@@ -220,14 +328,32 @@ class MediaRepository(context: Context) {
 
         var accountsRestored = 0
         for (account in cloudAccounts) {
-            if (targetAccountDao.getByScreenName(account.screenName) == null) {
-                targetAccountDao.insert(account)
-                accountsRestored++
-            }
+            if (targetAccountDao.getByScreenName(account.screenName) == null) accountsRestored++
+        }
+        if (cloudAccounts.isNotEmpty()) {
+            targetAccountDao.upsertAll(cloudAccounts)
         }
 
-        val insertedIds = if (cloudMedia.isNotEmpty()) mediaAssetDao.insertAll(cloudMedia) else emptyList()
-        val mediaRowsRestored = insertedIds.count { it != -1L }
+        var mediaRowsRestored = 0
+        if (cloudMedia.isNotEmpty()) {
+            val existingKeys = mediaAssetDao.getExistingMediaKeys(cloudMedia.map { it.mediaKey }).toSet()
+            val newMedia = cloudMedia.filter { it.mediaKey !in existingKeys }
+            val existingMedia = cloudMedia.filter { it.mediaKey in existingKeys }
+
+            if (newMedia.isNotEmpty()) {
+                val insertedIds = mediaAssetDao.insertAll(newMedia)
+                mediaRowsRestored = insertedIds.count { it != -1L }
+            }
+            for (asset in existingMedia) {
+                mediaAssetDao.updateCloudFields(
+                    mediaKey = asset.mediaKey,
+                    r2BackupUrl = asset.r2BackupUrl,
+                    isFace = asset.isFace,
+                    faceConfidence = asset.faceConfidence,
+                    faceReviewed = asset.faceReviewed
+                )
+            }
+        }
 
         val candidates = mediaAssetDao.getBackedUp()
             .filter { it.localImagePath == null || !File(it.localImagePath).exists() }

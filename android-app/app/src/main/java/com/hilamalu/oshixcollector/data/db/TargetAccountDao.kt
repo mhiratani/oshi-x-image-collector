@@ -28,6 +28,17 @@ interface TargetAccountDao {
     @Update
     suspend fun update(account: TargetAccountEntity)
 
+    /**
+     * クラウド同期(pull)用。全フィールドがクラウド由来でローカル専有フィールドが無いため、
+     * 既存行があれば単純に上書きしてよい。
+     */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(account: TargetAccountEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(accounts: List<TargetAccountEntity>)
+
+
     @Delete
     suspend fun delete(account: TargetAccountEntity)
 

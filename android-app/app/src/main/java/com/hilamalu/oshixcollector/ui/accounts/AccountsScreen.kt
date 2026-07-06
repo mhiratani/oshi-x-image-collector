@@ -6,17 +6,21 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -39,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hilamalu.oshixcollector.R
 import com.hilamalu.oshixcollector.data.db.TargetAccountEntity
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,11 +95,39 @@ fun AccountsScreen(viewModel: AccountsViewModel = viewModel()) {
                     Text(stringResource(R.string.accounts_empty))
                 }
             } else {
+                val hasBackfillTarget = accounts.any { it.xUserId != null && !it.backfillDone }
+                if (hasBackfillTarget) {
+                    OutlinedButton(
+                        onClick = { viewModel.backfillAll() },
+                        enabled = !viewModel.isBackfilling,
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+                    ) {
+                        if (viewModel.isBackfilling) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                        } else {
+                            Icon(Icons.Filled.History, contentDescription = null)
+                        }
+                        Text(
+                            stringResource(R.string.accounts_backfill),
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                }
                 OutlinedCard(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                     LazyColumn(modifier = Modifier.fillMaxWidth()) {
                         items(accounts, key = TargetAccountEntity::screenName) { account ->
                             ListItem(
                                 headlineContent = { Text("@${account.screenName}") },
+                                supportingContent = if (account.xUserId != null) {
+                                    {
+                                        Text(
+                                            stringResource(
+                                                if (account.backfillDone) R.string.accounts_backfill_done
+                                                else R.string.accounts_backfill_in_progress
+                                            )
+                                        )
+                                    }
+                                } else null,
                                 trailingContent = {
                                     IconButton(onClick = { viewModel.removeAccount(account.screenName) }) {
                                         Icon(
@@ -109,6 +142,7 @@ fun AccountsScreen(viewModel: AccountsViewModel = viewModel()) {
                     }
                 }
             }
+
         }
     }
 }

@@ -4,10 +4,11 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [TargetAccountEntity::class, MediaAssetEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -18,6 +19,14 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var instance: AppDatabase? = null
 
+        /** v2→v3: バックフィル機能のための2カラム追加。 */
+        private val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE target_accounts ADD COLUMN backfillCursor TEXT")
+                db.execSQL("ALTER TABLE target_accounts ADD COLUMN backfillDone INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -25,10 +34,13 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "oshi_x_image_collector.db"
                 )
-                    // アプリはまだ未リリースのため、v1→v2の実移行は書かず単純に作り直す。
-                    // リリース後にスキーマを変える場合は正式なMigrationに置き換えること。
+                    .addMigrations(MIGRATION_2_3)
+                    // v1→v2は未リリース期間のため実移行を書かず単純に作り直す。
+                    // v2→v3以降はMIGRATION_2_3のように正式なMigrationを書くこと。
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build().also { instance = it }
             }
     }
 }
+
+

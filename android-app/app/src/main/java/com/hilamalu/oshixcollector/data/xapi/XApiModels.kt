@@ -54,7 +54,9 @@ data class PhotoMedia(
 data class FetchPhotoMediaResult(
     val media: List<PhotoMedia>,
     val newestId: String?,
+    val oldestId: String? = null,
     val exhausted: Boolean
 )
+
 
 class XApiRateLimitedException(message: String) : Exception(message)

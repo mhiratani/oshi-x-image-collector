@@ -25,6 +25,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.IconButton
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -56,6 +59,13 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
         }
     }
 
+    LaunchedEffect(viewModel.syncMessage) {
+        viewModel.syncMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            viewModel.dismissSyncMessage()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -67,9 +77,17 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
                         label = { Text(stringResource(R.string.media_face_only_filter)) },
                         modifier = Modifier.padding(end = 12.dp)
                     )
+                    IconButton(onClick = { viewModel.syncFromCloud() }, enabled = !viewModel.isSyncing) {
+                        if (viewModel.isSyncing) {
+                            CircularProgressIndicator(modifier = Modifier.padding(4.dp))
+                        } else {
+                            Icon(Icons.Filled.Sync, contentDescription = stringResource(R.string.media_sync))
+                        }
+                    }
                 }
             )
         },
+
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             ExtendedFloatingActionButton(

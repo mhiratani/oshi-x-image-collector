@@ -22,12 +22,18 @@
     <string name="media_empty">画像がまだありません\nアカウントタブから追跡アカウントを追加してください</string>
     <string name="media_empty_face_only">顔が写っている画像がまだありません</string>
     <string name="media_face_only_filter">顔のみ</string>
+    <string name="media_sync">クラウドと同期</string>
+
 
     <!-- Accounts Screen -->
     <string name="accounts_add_hint">アカウント名を入力（@なし）</string>
     <string name="accounts_add">追加</string>
     <string name="accounts_empty">追跡中のアカウントがありません</string>
     <string name="accounts_delete">削除</string>
+    <string name="accounts_backfill">過去の投稿を読み込む</string>
+    <string name="accounts_backfill_done">過去の投稿はすべて取得済みです</string>
+    <string name="accounts_backfill_in_progress">過去の投稿を一部未取得です</string>
+
 
     <!-- Settings Screen -->
     <string name="settings_intro_description">Xの投稿収集にはBearer Tokenの入力が必須です。機種変更や再インストール時にデータを復元したい場合は、下のクラウドバックアップの項目にR2とFirebaseの情報を入力・保存してください。</string>

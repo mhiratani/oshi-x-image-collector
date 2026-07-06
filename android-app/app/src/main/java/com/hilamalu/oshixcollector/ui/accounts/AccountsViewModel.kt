@@ -22,6 +22,9 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
     var errorMessage by mutableStateOf<String?>(null)
         private set
 
+    var isBackfilling by mutableStateOf(false)
+        private set
+
     fun addAccount(screenName: String) {
         viewModelScope.launch {
             try {
@@ -36,7 +39,24 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { repository.removeAccount(screenName) }
     }
 
+    /** 「過去の投稿を読み込む」ボタンから呼ぶ。全追跡アカウント（backfillDone==falseのもの）を対象に遡り取得する。 */
+    fun backfillAll() {
+        if (isBackfilling) return
+        viewModelScope.launch {
+            isBackfilling = true
+            try {
+                repository.backfillAll()
+            } catch (e: Exception) {
+                errorMessage = e.message
+            } finally {
+                isBackfilling = false
+            }
+        }
+    }
+
     fun dismissError() {
         errorMessage = null
     }
 }
+
+

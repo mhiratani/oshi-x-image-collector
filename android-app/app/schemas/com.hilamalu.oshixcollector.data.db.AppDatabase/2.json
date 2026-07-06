@@ -1,0 +1,162 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "c8374787c711d275d6d2c209f14f6053",
+    "entities": [
+      {
+        "tableName": "target_accounts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`screenName` TEXT NOT NULL, `xUserId` TEXT, `lastFetchedId` TEXT, `lastCheckedAt` INTEGER, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`screenName`))",
+        "fields": [
+          {
+            "fieldPath": "screenName",
+            "columnName": "screenName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "xUserId",
+            "columnName": "xUserId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastFetchedId",
+            "columnName": "lastFetchedId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastCheckedAt",
+            "columnName": "lastCheckedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "screenName"
+          ]
+        }
+      },
+      {
+        "tableName": "media_assets",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`mediaKey` TEXT NOT NULL, `tweetId` TEXT NOT NULL, `xUserId` TEXT NOT NULL, `xCdnUrl` TEXT NOT NULL, `localImagePath` TEXT, `r2BackupUrl` TEXT, `backupAttempts` INTEGER NOT NULL, `postedAt` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `isFace` INTEGER, `faceConfidence` REAL, `faceReviewed` INTEGER NOT NULL, PRIMARY KEY(`mediaKey`))",
+        "fields": [
+          {
+            "fieldPath": "mediaKey",
+            "columnName": "mediaKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tweetId",
+            "columnName": "tweetId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "xUserId",
+            "columnName": "xUserId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "xCdnUrl",
+            "columnName": "xCdnUrl",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localImagePath",
+            "columnName": "localImagePath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "r2BackupUrl",
+            "columnName": "r2BackupUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "backupAttempts",
+            "columnName": "backupAttempts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "postedAt",
+            "columnName": "postedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isFace",
+            "columnName": "isFace",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "faceConfidence",
+            "columnName": "faceConfidence",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "faceReviewed",
+            "columnName": "faceReviewed",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "mediaKey"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_media_assets_xUserId_postedAt",
+            "unique": false,
+            "columnNames": [
+              "xUserId",
+              "postedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_media_assets_xUserId_postedAt` ON `${TABLE_NAME}` (`xUserId`, `postedAt`)"
+          },
+          {
+            "name": "index_media_assets_r2BackupUrl",
+            "unique": false,
+            "columnNames": [
+              "r2BackupUrl"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_media_assets_r2BackupUrl` ON `${TABLE_NAME}` (`r2BackupUrl`)"
+          },
+          {
+            "name": "index_media_assets_isFace",
+            "unique": false,
+            "columnNames": [
+              "isFace"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_media_assets_isFace` ON `${TABLE_NAME}` (`isFace`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c8374787c711d275d6d2c209f14f6053')"
+    ]
+  }
+}

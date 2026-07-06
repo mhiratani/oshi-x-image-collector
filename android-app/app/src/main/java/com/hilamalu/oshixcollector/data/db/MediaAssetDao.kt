@@ -43,4 +43,36 @@ interface MediaAssetDao {
 
     @Query("DELETE FROM media_assets WHERE xUserId = :xUserId")
     suspend fun deleteByAccount(xUserId: String)
+
+    /**
+     * クラウド同期(pull)用。ローカル専有フィールド（[MediaAssetEntity.localImagePath],
+     * [MediaAssetEntity.backupAttempts]）は保持したまま、クラウド由来フィールドだけを上書きする。
+     * 対象行がローカルに無い場合は何もしない（新規行は呼び出し側で[insertAll]すること）。
+     */
+    @Query(
+        """
+        UPDATE media_assets SET
+            r2BackupUrl = :r2BackupUrl,
+            isFace = :isFace,
+            faceConfidence = :faceConfidence,
+            faceReviewed = :faceReviewed
+        WHERE mediaKey = :mediaKey
+        """
+    )
+    suspend fun updateCloudFields(
+        mediaKey: String,
+        r2BackupUrl: String?,
+        isFace: Boolean?,
+        faceConfidence: Float?,
+        faceReviewed: Boolean
+    )
+
+    @Query("SELECT mediaKey FROM media_assets WHERE mediaKey IN (:mediaKeys)")
+    suspend fun getExistingMediaKeys(mediaKeys: List<String>): List<String>
+
+    /** バックフィル起点解決用（Web版の getOldestTweetId 相当）: 保存済みの中で最も古いツイートID。 */
+    @Query("SELECT tweetId FROM media_assets WHERE xUserId = :xUserId ORDER BY postedAt ASC LIMIT 1")
+    suspend fun getOldestTweetId(xUserId: String): String?
 }
+
+

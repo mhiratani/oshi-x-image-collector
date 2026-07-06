@@ -49,16 +49,22 @@ class XApiClient(
     }
 
     /**
-     * あるユーザーの新着ツイートから photo メディアを取得する。
-     * [sinceId]より新しいツイートのみ、最大[maxPages]ページ（1ページ=最大100件）取得する。
+     * あるユーザーのツイートから photo メディアを取得する。
+     * [sinceId]を指定すると新着方向（それより新しいツイートのみ）、
+     * [untilId]を指定するとバックフィル方向（それより古いツイートのみ）を取得する
+     * （[frontend/worker/xapi.js]のfetchPhotoMediaと同様、両者は排他的に使う想定）。
+     * 最大[maxPages]ページ（1ページ=最大100件）取得する。[onPage]は1ページ取得毎に件数を通知する（進捗表示用）。
      */
     suspend fun fetchPhotoMedia(
         userId: String,
-        sinceId: String?,
-        maxPages: Int = 3
+        sinceId: String? = null,
+        untilId: String? = null,
+        maxPages: Int = 3,
+        onPage: ((Int) -> Unit)? = null
     ): FetchPhotoMediaResult = withContext(Dispatchers.IO) {
         val media = mutableListOf<PhotoMedia>()
         var newestId: String? = null
+        var oldestId: String? = null
         var exhausted = false
         var paginationToken: String? = null
 
@@ -70,6 +76,7 @@ class XApiClient(
                 "media.fields" to "url,type",
                 "tweet.fields" to "created_at,attachments",
                 "since_id" to sinceId,
+                "until_id" to untilId,
                 "pagination_token" to paginationToken
             )
             val response = json.decodeFromString<TweetsResponse>(
@@ -77,8 +84,10 @@ class XApiClient(
             )
 
             if (response.meta?.newestId != null && newestId == null) newestId = response.meta.newestId
+            if (response.meta?.oldestId != null) oldestId = response.meta.oldestId
 
             val tweets = response.data
+            onPage?.invoke(tweets?.size ?: 0)
             if (tweets.isNullOrEmpty()) {
                 exhausted = true
                 break
@@ -102,8 +111,9 @@ class XApiClient(
             }
         }
 
-        FetchPhotoMediaResult(media = media, newestId = newestId, exhausted = exhausted)
+        FetchPhotoMediaResult(media = media, newestId = newestId, oldestId = oldestId, exhausted = exhausted)
     }
+
 
     companion object {
         private const val API_BASE = "https://api.twitter.com/2"

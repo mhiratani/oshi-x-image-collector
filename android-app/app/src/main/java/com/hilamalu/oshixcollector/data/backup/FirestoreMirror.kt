@@ -2,8 +2,10 @@ package com.hilamalu.oshixcollector.data.backup
 
 import android.content.Context
 import android.util.Log
+import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.hilamalu.oshixcollector.data.db.MediaAssetEntity
 import com.hilamalu.oshixcollector.data.db.TargetAccountEntity
 import com.hilamalu.oshixcollector.data.settings.SecureSettings
@@ -15,7 +17,11 @@ import kotlinx.coroutines.tasks.await
  * （呼び出し元はfire-and-forgetで呼び、例外はここで握りつぶしてログのみ残す）。
  *
  * コレクション構成: users/{uid}/targetAccounts/{screenName}, users/{uid}/mediaAssets/{mediaKey}
+ * （コレクション名はAndroid側の元々の命名、フィールド名はWeb側のsnake_case規約に統一）。
  * セキュリティルールは android-app/firestore.rules 参照。
+ *
+ * 書き込みは常に merge（[SetOptions.merge]）。Web/Android間で同じフィールドに競合が
+ * 起きた場合は「後から書き込んだ方が勝つ」でよい（docs/web-android-user-tree-unification-design.md参照）。
  */
 class FirestoreMirror(
     private val context: Context,
@@ -35,11 +41,15 @@ class FirestoreMirror(
             userDoc.collection("targetAccounts").document(account.screenName)
                 .set(
                     mapOf(
-                        "xUserId" to account.xUserId,
-                        "lastFetchedId" to account.lastFetchedId,
-                        "lastCheckedAt" to account.lastCheckedAt,
-                        "createdAt" to account.createdAt
-                    )
+                        "screen_name" to account.screenName,
+                        "x_user_id" to account.xUserId,
+                        "last_fetched_id" to account.lastFetchedId,
+                        "checked_at" to account.lastCheckedAt?.let { Timestamp(it / 1000, 0) },
+                        "created_at" to Timestamp(account.createdAt / 1000, 0),
+                        "backfill_cursor" to account.backfillCursor,
+                        "backfill_done" to account.backfillDone
+                    ),
+                    SetOptions.merge()
                 )
                 .await()
         }.onFailure { e -> Log.w(TAG, "mirrorTargetAccount failed: ${account.screenName}", e) }
@@ -55,15 +65,22 @@ class FirestoreMirror(
                     batch.set(
                         collection.document(asset.mediaKey),
                         mapOf(
-                            "tweetId" to asset.tweetId,
-                            "xUserId" to asset.xUserId,
-                            "xCdnUrl" to asset.xCdnUrl,
-                            "r2BackupUrl" to asset.r2BackupUrl,
-                            "postedAt" to asset.postedAt,
-                            "createdAt" to asset.createdAt,
-                            "isFace" to asset.isFace,
-                            "faceConfidence" to asset.faceConfidence
-                        )
+                            "media_key" to asset.mediaKey,
+                            "tweet_id" to asset.tweetId,
+                            "x_user_id" to asset.xUserId,
+                            "x_cdn_url" to asset.xCdnUrl,
+                            "r2_backup_url" to asset.r2BackupUrl,
+                            "backed_up" to (asset.r2BackupUrl != null),
+                            "backup_attempts" to asset.backupAttempts,
+                            "posted_at" to Timestamp(asset.postedAt / 1000, 0),
+                            "created_at" to Timestamp(asset.createdAt / 1000, 0),
+                            "is_face" to asset.isFace,
+                            "face_confidence" to asset.faceConfidence,
+                            "face_reviewed" to asset.faceReviewed,
+                            // Android側にゲーティングUIは無く、保存した画像は常に一覧に出すため常にtrue固定
+                            "revealed" to true
+                        ),
+                        SetOptions.merge()
                     )
                 }
             }.await()
@@ -76,10 +93,12 @@ class FirestoreMirror(
         return userDoc.collection("targetAccounts").get().await().documents.map { doc ->
             TargetAccountEntity(
                 screenName = doc.id,
-                xUserId = doc.getString("xUserId"),
-                lastFetchedId = doc.getString("lastFetchedId"),
-                lastCheckedAt = doc.getLong("lastCheckedAt"),
-                createdAt = doc.getLong("createdAt") ?: 0L
+                xUserId = doc.getString("x_user_id"),
+                lastFetchedId = doc.getString("last_fetched_id"),
+                lastCheckedAt = doc.getTimestamp("checked_at")?.toDate()?.time,
+                createdAt = doc.getTimestamp("created_at")?.toDate()?.time ?: 0L,
+                backfillCursor = doc.getString("backfill_cursor"),
+                backfillDone = doc.getBoolean("backfill_done") ?: false
             )
         }
     }
@@ -88,9 +107,9 @@ class FirestoreMirror(
     suspend fun fetchMediaAssets(): List<MediaAssetEntity> {
         val userDoc = userDocOrNull() ?: error("Googleサインインが必要です")
         return userDoc.collection("mediaAssets").get().await().documents.mapNotNull { doc ->
-            val tweetId = doc.getString("tweetId")
-            val xUserId = doc.getString("xUserId")
-            val xCdnUrl = doc.getString("xCdnUrl")
+            val tweetId = doc.getString("tweet_id")
+            val xUserId = doc.getString("x_user_id")
+            val xCdnUrl = doc.getString("x_cdn_url")
             if (tweetId == null || xUserId == null || xCdnUrl == null) {
                 Log.w(TAG, "fetchMediaAssets: skipping malformed doc ${doc.id}")
                 return@mapNotNull null
@@ -101,18 +120,56 @@ class FirestoreMirror(
                 xUserId = xUserId,
                 xCdnUrl = xCdnUrl,
                 localImagePath = null,
-                r2BackupUrl = doc.getString("r2BackupUrl"),
-                backupAttempts = 0,
-                postedAt = doc.getLong("postedAt") ?: 0L,
-                createdAt = doc.getLong("createdAt") ?: 0L,
-                isFace = doc.getBoolean("isFace"),
-                faceConfidence = doc.getDouble("faceConfidence")?.toFloat(),
-                faceReviewed = false
+                r2BackupUrl = doc.getString("r2_backup_url"),
+                backupAttempts = (doc.getLong("backup_attempts") ?: 0L).toInt(),
+                postedAt = doc.getTimestamp("posted_at")?.toDate()?.time ?: 0L,
+                createdAt = doc.getTimestamp("created_at")?.toDate()?.time ?: 0L,
+                isFace = doc.getBoolean("is_face"),
+                faceConfidence = doc.getDouble("face_confidence")?.toFloat(),
+                faceReviewed = doc.getBoolean("face_reviewed") ?: false
             )
         }
     }
 
+    /**
+     * X APIの呼び出し1回分の使用量ログを記録する（Web版`api_usage_log`と同じ形）。
+     * 同じGoogleアカウントの使用料としてWeb版と合算表示するため`users/{uid}/apiUsageLog`に追加する。
+     * 未サインインの場合は静かにスキップする（バックアップ機能全体と同じ挙動、この機能のためだけに
+     * サインインを強制しない）。失敗しても本処理（X API呼び出し自体）には影響させない。
+     */
+    suspend fun logApiUsage(
+        purpose: String,
+        endpoint: String,
+        screenName: String?,
+        resource: String,
+        quantity: Int
+    ) {
+        val userDoc = userDocOrNull() ?: return
+        runCatching {
+            val unitCostUsd = UNIT_COST_USD[resource] ?: 0.0
+            userDoc.collection("apiUsageLog").add(
+                mapOf(
+                    "called_at" to Timestamp.now(),
+                    "purpose" to purpose,
+                    "endpoint" to endpoint,
+                    "screen_name" to screenName,
+                    "resource" to resource,
+                    "quantity" to quantity,
+                    "unit_cost_usd" to unitCostUsd,
+                    "cost_usd" to quantity * unitCostUsd
+                )
+            ).await()
+        }.onFailure { e -> Log.w(TAG, "logApiUsage failed: $purpose/$endpoint", e) }
+    }
+
     private companion object {
         const val TAG = "FirestoreMirror"
+
+        // X APIは従量課金（返却リソース件数に応じた課金）。単価はWeb版のdocker-compose.yml
+        // (UNIT_COST_USD_USER_READ/UNIT_COST_USD_POSTS_READ)と同じ値を持たせる。
+        val UNIT_COST_USD = mapOf(
+            "user_read" to 0.01,
+            "posts_read" to 0.005
+        )
     }
 }
