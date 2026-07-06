@@ -1,6 +1,3 @@
-import java.util.Properties
-import java.io.FileInputStream
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -8,31 +5,9 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// ──────────────────────────────────────────────────────────────
-// 署名設定を app/local.properties から読み込む（git 管理外）
-//   KEYSTORE_PATH      : keystoreファイルのパス（app/ からの相対パス or 絶対パス）
-//   KEY_ALIAS          : キーのエイリアス
-//   KEYSTORE_PASSWORD  : keystoreのパスワード
-//   KEY_PASSWORD       : キーのパスワード
-// ──────────────────────────────────────────────────────────────
-val appLocalProps = Properties().also { props ->
-    val f = file("local.properties")
-    if (f.exists()) f.inputStream().use { props.load(it) }
-}
-
 android {
     namespace = "com.hilamalu.oshixcollector"
     compileSdk = 36
-
-    signingConfigs {
-        create("release") {
-            val ksPath = appLocalProps.getProperty("KEYSTORE_PATH", "")
-            storeFile = if (ksPath.isNotEmpty()) file(ksPath) else null
-            keyAlias = appLocalProps.getProperty("KEY_ALIAS", "")
-            storePassword = appLocalProps.getProperty("KEYSTORE_PASSWORD", "")
-            keyPassword = appLocalProps.getProperty("KEY_PASSWORD", "")
-        }
-    }
 
     defaultConfig {
         applicationId = "com.hilamalu.oshixcollector"
@@ -52,7 +27,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            // 署名は行わない: build_apk.shがapp-release-unsigned.apkを自前のkeystoreで
+            // zipalign+apksigner署名する設計のため、Gradle側では signingConfig を設定しない。
         }
         debug {
             isDebuggable = true
