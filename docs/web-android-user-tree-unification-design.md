@@ -18,10 +18,16 @@
 - Android: API使用量ログ。`FirestoreMirror.logApiUsage()`(Web版と同じ単価定数)。`MediaRepository.refreshAll()`/`backfillAll()`の`resolveUserId`/`fetchPhotoMedia`呼び出し後にそれぞれ記録。
 - Android: `./gradlew clean compileDebugKotlin`でBUILD SUCCESSFULを確認済み(警告のみ、`SecureSettings.kt`のEncryptedSharedPreferences非推奨警告は既存分)。
 
-**未検証**: この環境にNode.js/npmが無くWeb側の型チェック・ビルドを実行できていない。次回、Docker(`docker build --target builder ./frontend`等)かNode環境で`next build`相当の型チェックを一度通すこと。特に`next-auth/providers/credentials`のインポート・`auth.ts`のCredentialsプロバイダの型、`firebase`パッケージの新規追加分。
+**検証済み(2026-07-06)**: Node.js v24.11.1/npm 11.6.2環境で`frontend`にて`npm install`→`npx tsc --noEmit`(EXITCODE:0、型エラーなし)→`npm run build`(EXITCODE:0、`next build`成功)を実行し問題なし。ビルド時の警告は`next-auth`が内部で読み込む`jose`パッケージのEdge Runtime非対応API(`CompressionStream`/`DecompressionStream`)警告のみで、既存の`next-auth`ライブラリ内部の既知警告であり今回の変更とは無関係(実害なし)。`firebase`パッケージ追加分・Credentialsプロバイダの型・`auth.ts`周りも含めて型チェック・ビルドともに正常終了した。
 
-次回はカットオーバー手順(下記「実施順序」節)に着手する。特に手順1(Android版で一度サインインしuid確認)は新スキーマ対応済みのAndroid版で実行してよい。
+**カットオーバー手順の進捗(2026-07-06、続き)**:
+- 手順1完了: Android版(エミュレータでデバッグビルドをインストール)でGoogleサインインを実施し、Firebase Auth上のuidを確認。**`OWNER_UID=VR2RrgDAwGdzQhTdDtTmkjfJMKE3`**。
+- 手順2完了: Firebaseプロジェクト`x-image-collector`は既にAndroid版で使用中のものと同一で、Webアプリ登録も不要だった(Android用アプリ登録のAPIキー・プロジェクトID・アプリID・ウェブクライアントIDをそのままWeb側でも利用可能。Google Identity ServicesはAndroidアプリ登録時のクライアントIDをWebでも共用できるため)。取得した値は`.env`(gitignore対象、リポジトリ直下)に反映済み: `NEXT_PUBLIC_FIREBASE_API_KEY`/`NEXT_PUBLIC_FIREBASE_PROJECT_ID`/`NEXT_PUBLIC_FIREBASE_APP_ID`/`OWNER_UID`を追加、`OIDC_ISSUER`/`OIDC_CLIENT_ID`/`OIDC_CLIENT_SECRET`を削除済み。
+- 手順4を先行実施(手順3のデプロイより前に実行): `node --env-file=.env scripts/migrate-to-user-tree.mjs`を実行し、旧トップレベルコレクションから`users/{OWNER_UID}/...`への移行が成功(target_accounts→targetAccounts 5件、media_assets→mediaAssets 2436件、api_usage_log→apiUsageLog 307件、share_linksへのowner_uid付与2件。件数検証もすべてOK)。旧トップレベルコレクションは削除していない(手順7で観察期間後に削除予定)。
+- Android版のリリース鍵SHA-1(`build_apk.sh`で生成される`dist/oshi-x-image-collector-release.keystore`)をFirebase Consoleに追加登録し、実機ビルド(リリースAPK)でもGoogleサインイン→クラウド復元が正常動作することを確認(デバッグ鍵のSHA-1とは別に、リリース鍵のSHA-1も登録が必要だった点が新たな注意点)。
+- **未実施(次回、ユーザー側で実施予定)**: 手順3(本番Webサーバーへのコードデプロイ・`.env`反映)。本番は`https://x-image-collector.stella-kanon.com`で稼働中で、デプロイ方法は次回ユーザーが確認の上実施する。デプロイ後、`docker-compose.yml`が要求する環境変数(`NEXT_PUBLIC_FIREBASE_API_KEY`/`NEXT_PUBLIC_FIREBASE_PROJECT_ID`/`NEXT_PUBLIC_FIREBASE_APP_ID`/`OWNER_UID`)がこのリポジトリ直下の`.env`に設定済みであることを確認してから反映すること。デプロイ後は手順6(動作確認)、1〜2週間後に手順7(旧コレクション削除)。
 
+次回はWeb側の本番デプロイ(手順3)から着手する。
 
 ## Context
 
