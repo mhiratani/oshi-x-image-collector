@@ -12,13 +12,26 @@ X（Twitter）の指定アカウントから画像を定期収集し、バック
 - `firestore.indexes.json` : Firestoreの複合インデックス定義（`firebase deploy --only firestore:indexes` でデプロイ）
 - `android-app/` : Android版（Kotlin, 新規）。設計は `docs/android-app-design.md` を参照。現状はビルド可能な最小スケルトンのみ（機能未実装）
 
-Web版のデータストアは **Firestore**。Web版・Android版は同じFirebaseプロジェクトを
-使うことはできるが、コレクション構成が異なるためデータそのものは共有しない（詳細は上記設計書を参照）。
+Web版のデータストアは **Firestore**。Web版・Android版は同じFirebaseプロジェクト・
+同じuidのFirestoreツリー(`users/{uid}/...`)を共有しており、同じGoogleアカウントであれば
+どちらからログインしても同じデータが見える（詳細は `docs/web-android-user-tree-unification-design.md` を参照）。
 
 画像バックアップの実体は **Cloudflare R2**（S3互換オブジェクトストレージ）。
 - `frontend/lib/r2.ts` : R2用のS3クライアント（`@aws-sdk/client-s3`）
 - `frontend/worker/backup.js` : X CDNから取得した画像・サムネイルをR2へアップロード
 - `frontend/app/backups/[...path]/route.ts` : `/backups/<x_user_id>/<media_key>.<ext>` へのリクエストをR2から都度取得して配信するプロキシ（R2の認証情報はサーバー側のみで保持し、バケット自体は非公開のままでよい）
+
+## 認証
+
+Web版はFirebase Auth（Google Sign-Inのみ）でログインする。ただし任意のGoogleアカウントを
+受け入れているわけではなく、`.env`の`OWNER_UID`（本人のFirebase uid）と一致するアカウントだけに
+セッションを発行する「一人用のホワイトリスト方式」（`frontend/auth.ts`の`signIn`コールバック）。
+
+- 他人が誤って/意図的にログインを試みても、Google認証自体は成功する（Firebaseコンソールの
+  Authentication → Usersには登録される）が、`OWNER_UID`と一致しないためNextAuthのセッションは
+  発行されず、全ページ・全APIが`/login`リダイレクト/401で弾く（`frontend/middleware.ts`）。
+- Android版アプリで先にGoogle Sign-Inしてuidを確認し、その値を`OWNER_UID`に設定する運用
+  （詳細は `docs/web-android-user-tree-unification-design.md` の実施順序を参照）。
 
 ## 初回セットアップ
 
@@ -28,7 +41,7 @@ Web版のデータストアは **Firestore**。Web版・Android版は同じFireb
 cp .env.example .env
 ```
 
-`.env` の各値（`X_BEARER_TOKEN`, `FIREBASE_*`, `AUTH_*`, `OIDC_*`, `CLOUDFLARE_*`）を埋める。
+`.env` の各値（`X_BEARER_TOKEN`, `FIREBASE_*`, `AUTH_*`, `NEXT_PUBLIC_FIREBASE_*`, `OWNER_UID`, `CLOUDFLARE_*`）を埋める。
 
 ### 2. R2の準備（画像バックアップ用）
 

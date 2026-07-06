@@ -25,9 +25,16 @@
 - 手順2完了: Firebaseプロジェクト`x-image-collector`は既にAndroid版で使用中のものと同一で、Webアプリ登録も不要だった(Android用アプリ登録のAPIキー・プロジェクトID・アプリID・ウェブクライアントIDをそのままWeb側でも利用可能。Google Identity ServicesはAndroidアプリ登録時のクライアントIDをWebでも共用できるため)。取得した値は`.env`(gitignore対象、リポジトリ直下)に反映済み: `NEXT_PUBLIC_FIREBASE_API_KEY`/`NEXT_PUBLIC_FIREBASE_PROJECT_ID`/`NEXT_PUBLIC_FIREBASE_APP_ID`/`OWNER_UID`を追加、`OIDC_ISSUER`/`OIDC_CLIENT_ID`/`OIDC_CLIENT_SECRET`を削除済み。
 - 手順4を先行実施(手順3のデプロイより前に実行): `node --env-file=.env scripts/migrate-to-user-tree.mjs`を実行し、旧トップレベルコレクションから`users/{OWNER_UID}/...`への移行が成功(target_accounts→targetAccounts 5件、media_assets→mediaAssets 2436件、api_usage_log→apiUsageLog 307件、share_linksへのowner_uid付与2件。件数検証もすべてOK)。旧トップレベルコレクションは削除していない(手順7で観察期間後に削除予定)。
 - Android版のリリース鍵SHA-1(`build_apk.sh`で生成される`dist/oshi-x-image-collector-release.keystore`)をFirebase Consoleに追加登録し、実機ビルド(リリースAPK)でもGoogleサインイン→クラウド復元が正常動作することを確認(デバッグ鍵のSHA-1とは別に、リリース鍵のSHA-1も登録が必要だった点が新たな注意点)。
-- **未実施(次回、ユーザー側で実施予定)**: 手順3(本番Webサーバーへのコードデプロイ・`.env`反映)。本番は`https://x-image-collector.stella-kanon.com`で稼働中で、デプロイ方法は次回ユーザーが確認の上実施する。デプロイ後、`docker-compose.yml`が要求する環境変数(`NEXT_PUBLIC_FIREBASE_API_KEY`/`NEXT_PUBLIC_FIREBASE_PROJECT_ID`/`NEXT_PUBLIC_FIREBASE_APP_ID`/`OWNER_UID`)がこのリポジトリ直下の`.env`に設定済みであることを確認してから反映すること。デプロイ後は手順6(動作確認)、1〜2週間後に手順7(旧コレクション削除)。
+- **手順3完了(2026-07-06)**: 本番Pi(`https://x-image-collector.stella-kanon.com`、このリポジトリ直下がそのまま本番環境)で`docker compose up -d --build`により反映。作業の過程で以下の問題が見つかり、あわせて修正した。
+  - Firebaseコンソールで別途「Web」アプリ登録を行い、その`apiKey`/`appId`(`web:28440ae32f9879bbc0d687`)を`.env`の`NEXT_PUBLIC_FIREBASE_*`に設定した。**振り返ると手順2の結論(Android版の値を流用すればWeb登録は不要)通りで問題なかったが、別registrationでも同一プロジェクトである以上ユーザー/データは共有されるため実害はない**(このままでよい)。
+  - `frontend/lib/firebaseClient.ts`の`initializeApp()`に`authDomain`が渡っておらず未設定だった。Google Sign-Inのポップアップ認証に必須のため追加(`NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`を`.env`/`.env.example`/`docker-compose.yml`に新設)。
+  - `NEXT_PUBLIC_*`はNext.jsのビルド時にクライアントバンドルへ焼き込まれる値だが、`frontend/Dockerfile`のbuilderステージに渡っておらず、`docker-compose.yml`側は実行時`environment:`にしか定義していなかったため、本番Dockerビルドでは実質`undefined`になっていた。`docker-compose.yml`の`frontend.build`に`args:`を追加し、`Dockerfile`で`ARG`→`ENV`として受け取るよう修正(`docker compose build`でビルドしたバンドルに実際の値が焼き込まれることを確認済み)。
+  - ログイン時に`Firebase: Error (auth/unauthorized-domain)`が発生。独自ドメイン`x-image-collector.stella-kanon.com`がFirebase Consoleの「承認済みドメイン」に未登録だったため。ユーザー側でコンソールから追加してもらい解消。
+  - ログイン後、画像一覧が読み込み中のまま止まる事象が発生。原因は`firestore.indexes.json`に定義済みの複合インデックス(`mediaAssets`等)が実際のFirestoreプロジェクトに未デプロイだったこと(手順1.4相当の作業漏れ)。一時的なサービスアカウント認証で`firebase deploy --only firestore:indexes --project x-image-collector`を実行しデプロイ(鍵ファイルは作業後に削除済み)。数分のインデックス構築後、画像一覧が正常に表示されることを確認した。
+- **手順6(動作確認)は一部のみ実施**: ログイン・画像一覧の表示までは確認できた。バックフィル・共有リンク・使用量ダッシュボード・Android側からの相互反映・cron自動実行などは未確認のため、次回以降に「検証方法」節のチェックリストに沿って確認すること。
+- 手順7(旧トップレベルコレクション削除)は引き続き1〜2週間の観察期間を置いてから。
 
-次回はWeb側の本番デプロイ(手順3)から着手する。
+次回は手順6の残り(検証方法チェックリスト)の確認から着手する。
 
 ## Context
 
