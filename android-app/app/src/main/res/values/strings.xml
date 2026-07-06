@@ -30,6 +30,7 @@
     <string name="accounts_delete">削除</string>
 
     <!-- Settings Screen -->
+    <string name="settings_intro_description">Xの投稿収集にはBearer Tokenの入力が必須です。機種変更や再インストール時にデータを復元したい場合は、下のクラウドバックアップの項目にR2とFirebaseの情報を入力・保存してください。</string>
     <string name="settings_x_section">X（Twitter）API</string>
     <string name="settings_x_bearer_token">Bearer Token</string>
     <string name="settings_r2_section">Cloudflare R2（クラウド画像バックアップ）</string>

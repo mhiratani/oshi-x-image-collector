@@ -10,15 +10,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Button
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,6 +40,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hilamalu.oshixcollector.R
 import com.hilamalu.oshixcollector.data.db.TargetAccountEntity
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountsScreen(viewModel: AccountsViewModel = viewModel()) {
     val accounts by viewModel.accounts.collectAsState()
@@ -48,23 +54,34 @@ fun AccountsScreen(viewModel: AccountsViewModel = viewModel()) {
         }
     }
 
-    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
+    Scaffold(
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.nav_accounts)) }) },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding).padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = newScreenName,
-                    onValueChange = { newScreenName = it },
-                    label = { Text(stringResource(R.string.accounts_add_hint)) },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-                TextButton(onClick = {
-                    if (newScreenName.isNotBlank()) {
-                        viewModel.addAccount(newScreenName)
-                        newScreenName = ""
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    OutlinedTextField(
+                        value = newScreenName,
+                        onValueChange = { newScreenName = it },
+                        label = { Text(stringResource(R.string.accounts_add_hint)) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Button(
+                        onClick = {
+                            if (newScreenName.isNotBlank()) {
+                                viewModel.addAccount(newScreenName)
+                                newScreenName = ""
+                            }
+                        },
+                        modifier = Modifier.padding(start = 8.dp)
+                    ) {
+                        Text(stringResource(R.string.accounts_add))
                     }
-                }) {
-                    Text(stringResource(R.string.accounts_add))
                 }
             }
 
@@ -73,19 +90,22 @@ fun AccountsScreen(viewModel: AccountsViewModel = viewModel()) {
                     Text(stringResource(R.string.accounts_empty))
                 }
             } else {
-                LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    items(accounts, key = TargetAccountEntity::screenName) { account ->
-                        ListItem(
-                            headlineContent = { Text("@${account.screenName}") },
-                            trailingContent = {
-                                IconButton(onClick = { viewModel.removeAccount(account.screenName) }) {
-                                    Icon(
-                                        Icons.Filled.Delete,
-                                        contentDescription = stringResource(R.string.accounts_delete)
-                                    )
+                OutlinedCard(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                        items(accounts, key = TargetAccountEntity::screenName) { account ->
+                            ListItem(
+                                headlineContent = { Text("@${account.screenName}") },
+                                trailingContent = {
+                                    IconButton(onClick = { viewModel.removeAccount(account.screenName) }) {
+                                        Icon(
+                                            Icons.Filled.Delete,
+                                            contentDescription = stringResource(R.string.accounts_delete)
+                                        )
+                                    }
                                 }
-                            }
-                        )
+                            )
+                            HorizontalDivider()
+                        }
                     }
                 }
             }
