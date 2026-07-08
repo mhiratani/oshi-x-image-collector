@@ -25,6 +25,7 @@ export default function IdolImage({ xCdnUrl, r2BackupUrl, altText, size = 'small
   const [imgSrc, setImgSrc] = useState(primary);
   const [triedFallback, setTriedFallback] = useState(false);
   const [dead, setDead] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   const handleError = () => {
     if (localUrl && !triedFallback) {
@@ -39,5 +40,19 @@ export default function IdolImage({ xCdnUrl, r2BackupUrl, altText, size = 'small
     return <div style={{ display: 'grid', placeItems: 'center', width: '100%', height: '100%', color: '#666', fontSize: 12 }}>画像消失</div>;
   }
 
-  return <img src={imgSrc} alt={altText} onError={handleError} loading="lazy" />;
+  return (
+    <>
+      {size === 'orig' && !loaded && <span className="spinner" role="status" aria-label="読み込み中" />}
+      <img
+        src={imgSrc}
+        alt={altText}
+        onError={handleError}
+        onLoad={() => {
+          if (size === 'orig') setLoaded(true);
+        }}
+        loading="lazy"
+        style={size === 'orig' && !loaded ? { visibility: 'hidden' } : undefined}
+      />
+    </>
+  );
 }

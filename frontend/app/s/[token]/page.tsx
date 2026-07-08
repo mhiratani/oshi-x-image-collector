@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import IdolImage from '@/components/IdolImage';
+import { useLightboxSwipe } from '@/lib/useLightboxSwipe';
 
 type MediaItem = {
   media_key: string;
@@ -23,7 +24,6 @@ export default function SharedGalleryPage() {
   const [faceOnly, setFaceOnly] = useState(false);
   const [selected, setSelected] = useState<MediaItem | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const touchStartX = useRef<number | null>(null);
 
   const loadMore = useCallback(
     async (reset = false) => {
@@ -80,24 +80,14 @@ export default function SharedGalleryPage() {
   }, [hasMore, loading, loadMore]);
 
   // 拡大表示中のスワイプで前後の画像に送る
-  const selectedIndex = selected ? items.findIndex((i) => i.media_key === selected.media_key) : -1;
-  const showPrev = () => {
-    if (selectedIndex > 0) setSelected(items[selectedIndex - 1]);
-  };
-  const showNext = () => {
-    if (selectedIndex >= 0 && selectedIndex < items.length - 1) setSelected(items[selectedIndex + 1]);
-  };
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const dx = e.changedTouches[0].clientX - touchStartX.current;
-    touchStartX.current = null;
-    if (Math.abs(dx) < 50) return;
-    if (dx < 0) showNext();
-    else showPrev();
-  };
+  const { handleTouchStart, handleTouchEnd, wasSwipe } = useLightboxSwipe({
+    items,
+    selected,
+    setSelected,
+    hasMore,
+    loading,
+    loadMore,
+  });
 
   if (invalid) {
     return <p className="status">このリンクは無効です（発行者によって取り消されたか、存在しません）</p>;
@@ -137,11 +127,12 @@ export default function SharedGalleryPage() {
       {selected && (
         <div
           className="lightbox"
-          onClick={() => setSelected(null)}
+          onClick={() => { if (!wasSwipe()) setSelected(null); }}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
           <IdolImage
+            key={selected.media_key}
             xCdnUrl={selected.x_cdn_url}
             r2BackupUrl={selected.r2_backup_url}
             altText="拡大画像"

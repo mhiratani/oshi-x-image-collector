@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import IdolImage from '@/components/IdolImage';
+import { useLightboxSwipe } from '@/lib/useLightboxSwipe';
 
 type MediaItem = {
   media_key: string;
@@ -71,7 +72,6 @@ export default function GalleryPage() {
   const [collecting, setCollecting] = useState(false);
   const [revealing, setRevealing] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const touchStartX = useRef<number | null>(null);
 
   // バックフィルはアカウント単位の操作のため、1件だけ絞り込み中のときだけそのアカウントを対象にする
   const backfillAccount = filter.length === 1 ? filter[0] : undefined;
@@ -229,24 +229,14 @@ export default function GalleryPage() {
   };
 
   // 拡大表示中のスワイプで前後の画像に送る
-  const selectedIndex = selected ? items.findIndex((i) => i.media_key === selected.media_key) : -1;
-  const showPrev = () => {
-    if (selectedIndex > 0) setSelected(items[selectedIndex - 1]);
-  };
-  const showNext = () => {
-    if (selectedIndex >= 0 && selectedIndex < items.length - 1) setSelected(items[selectedIndex + 1]);
-  };
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const dx = e.changedTouches[0].clientX - touchStartX.current;
-    touchStartX.current = null;
-    if (Math.abs(dx) < 50) return;
-    if (dx < 0) showNext();
-    else showPrev();
-  };
+  const { handleTouchStart, handleTouchEnd, wasSwipe } = useLightboxSwipe({
+    items,
+    selected,
+    setSelected,
+    hasMore,
+    loading,
+    loadMore,
+  });
 
   const lastError = collectStatus.lastError ?? backfill.lastError;
   const busy = backfilling || backfill.running || collecting || collectStatus.running || revealing;
@@ -377,11 +367,12 @@ export default function GalleryPage() {
       {selected && (
         <div
           className="lightbox"
-          onClick={() => setSelected(null)}
+          onClick={() => { if (!wasSwipe()) setSelected(null); }}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
           <IdolImage
+            key={selected.media_key}
             xCdnUrl={selected.x_cdn_url}
             r2BackupUrl={selected.r2_backup_url}
             altText="拡大画像"
