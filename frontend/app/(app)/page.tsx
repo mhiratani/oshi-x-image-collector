@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import IdolImage from '@/components/IdolImage';
 import { useLightboxSwipe } from '@/lib/useLightboxSwipe';
+import { useLightboxHistoryBack } from '@/lib/useLightboxHistoryBack';
 
 type MediaItem = {
   media_key: string;
@@ -237,6 +238,8 @@ export default function GalleryPage() {
     loading,
     loadMore,
   });
+  // 拡大表示中は「戻る」でページごと戻さず、拡大表示を閉じるだけにする
+  useLightboxHistoryBack(selected !== null, () => setSelected(null));
 
   const lastError = collectStatus.lastError ?? backfill.lastError;
   const busy = backfilling || backfill.running || collecting || collectStatus.running || revealing;

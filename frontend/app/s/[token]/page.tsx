@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import IdolImage from '@/components/IdolImage';
 import { useLightboxSwipe } from '@/lib/useLightboxSwipe';
+import { useLightboxHistoryBack } from '@/lib/useLightboxHistoryBack';
 
 type MediaItem = {
   media_key: string;
@@ -88,6 +89,8 @@ export default function SharedGalleryPage() {
     loading,
     loadMore,
   });
+  // 拡大表示中は「戻る」でページごと戻さず、拡大表示を閉じるだけにする
+  useLightboxHistoryBack(selected !== null, () => setSelected(null));
 
   if (invalid) {
     return <p className="status">このリンクは無効です（発行者によって取り消されたか、存在しません）</p>;
