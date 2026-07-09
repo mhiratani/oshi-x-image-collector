@@ -5,9 +5,9 @@ import * as targetAccounts from '@/lib/repo/targetAccounts';
 
 export const dynamic = 'force-dynamic';
 
-// PATCH /api/media/:mediaKey  body: { isFace: boolean }
-// 顔フィルターの手動上書き。自分の推しリストに入っているアカウントの
-// 画像であることを確認してから更新する
+// PATCH /api/media/:mediaKey  body: { isFace?: boolean, isFavorite?: boolean }
+// 顔フィルターの手動上書き・お気に入りの切り替え。自分の推しリストに入っている
+// アカウントの画像であることを確認してから更新する
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { mediaKey: string } }
@@ -16,8 +16,10 @@ export async function PATCH(
   const uid = session!.user!.uid!;
 
   const body = await req.json().catch(() => null);
-  if (typeof body?.isFace !== 'boolean') {
-    return NextResponse.json({ error: 'isFace(boolean)が必要です' }, { status: 400 });
+  const hasIsFace = typeof body?.isFace === 'boolean';
+  const hasIsFavorite = typeof body?.isFavorite === 'boolean';
+  if (!hasIsFace && !hasIsFavorite) {
+    return NextResponse.json({ error: 'isFaceまたはisFavorite(boolean)が必要です' }, { status: 400 });
   }
 
   const target = await media.getMedia(uid, params.mediaKey);
@@ -26,6 +28,7 @@ export async function PATCH(
     return NextResponse.json({ error: '対象が見つかりません' }, { status: 404 });
   }
 
-  await media.updateFace(uid, params.mediaKey, body.isFace);
+  if (hasIsFace) await media.updateFace(uid, params.mediaKey, body.isFace);
+  if (hasIsFavorite) await media.updateFavorite(uid, params.mediaKey, body.isFavorite);
   return NextResponse.json({ ok: true });
 }

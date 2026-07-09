@@ -36,6 +36,8 @@ export async function GET(
     uid: link.owner_uid,
     xUserIds: [account.x_user_id],
     faceOnly,
+    // お気に入りは所有者だけの情報のため、共有リンク経由では絞り込みを提供しない
+    favoriteOnly: false,
     cursor,
     limit: MEDIA_PAGE_SIZE,
   });

@@ -25,6 +25,29 @@
       "collectionGroup": "mediaAssets",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "x_user_id", "order": "ASCENDING" },
+        { "fieldPath": "revealed", "order": "ASCENDING" },
+        { "fieldPath": "is_favorite", "order": "ASCENDING" },
+        { "fieldPath": "posted_at", "order": "DESCENDING" },
+        { "fieldPath": "media_key", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mediaAssets",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "x_user_id", "order": "ASCENDING" },
+        { "fieldPath": "revealed", "order": "ASCENDING" },
+        { "fieldPath": "is_face", "order": "ASCENDING" },
+        { "fieldPath": "is_favorite", "order": "ASCENDING" },
+        { "fieldPath": "posted_at", "order": "DESCENDING" },
+        { "fieldPath": "media_key", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "mediaAssets",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "backed_up", "order": "ASCENDING" },
         { "fieldPath": "posted_at", "order": "DESCENDING" }
       ]

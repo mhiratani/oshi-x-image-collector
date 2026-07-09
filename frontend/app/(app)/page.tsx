@@ -14,6 +14,7 @@ type MediaItem = {
   posted_at: string;
   screen_name: string | null;
   is_face: boolean | null;
+  is_favorite: boolean;
 };
 
 type Account = {
@@ -60,6 +61,7 @@ export default function GalleryPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [filter, setFilter] = useState<string[]>([]);
   const [faceOnly, setFaceOnly] = useState(false);
+  const [favoriteOnly, setFavoriteOnly] = useState(false);
   const [selected, setSelected] = useState<MediaItem | null>(null);
   const [backfill, setBackfill] = useState<BackfillStatus>({
     running: false,
@@ -86,6 +88,7 @@ export default function GalleryPage() {
         if (!reset && cursor) params.set('cursor', cursor);
         if (filter.length > 0) params.set('account', filter.join(','));
         if (faceOnly) params.set('faceOnly', 'true');
+        if (favoriteOnly) params.set('favoriteOnly', 'true');
         const res = await fetch(`/api/media?${params}`);
         const json = await res.json();
         setItems((prev) => {
@@ -103,7 +106,7 @@ export default function GalleryPage() {
         setLoading(false);
       }
     },
-    [cursor, filter, faceOnly, loading]
+    [cursor, filter, faceOnly, favoriteOnly, loading]
   );
 
   // フィルタ変更時にリセットして再取得
@@ -113,7 +116,7 @@ export default function GalleryPage() {
     setHasMore(true);
     loadMore(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, faceOnly]);
+  }, [filter, faceOnly, favoriteOnly]);
 
   useEffect(() => {
     fetch('/api/accounts')
@@ -258,6 +261,22 @@ export default function GalleryPage() {
     setSelected((prev) => (prev && prev.media_key === item.media_key ? { ...prev, is_face: isFace } : prev));
   };
 
+  // お気に入りの切り替え（拡大表示から）
+  const toggleFavorite = async (item: MediaItem, isFavorite: boolean) => {
+    const res = await fetch(`/api/media/${item.media_key}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isFavorite }),
+    }).catch(() => null);
+    if (!res || !res.ok) return;
+    setItems((prev) =>
+      prev.map((i) => (i.media_key === item.media_key ? { ...i, is_favorite: isFavorite } : i))
+    );
+    setSelected((prev) =>
+      prev && prev.media_key === item.media_key ? { ...prev, is_favorite: isFavorite } : prev
+    );
+  };
+
   return (
     <>
       {lastError && !busy && (
@@ -316,6 +335,12 @@ export default function GalleryPage() {
           onClick={() => setFaceOnly((v) => !v)}
         >
           🙂 顔のみ
+        </button>
+        <button
+          className={`chip ${favoriteOnly ? 'active' : ''}`}
+          onClick={() => setFavoriteOnly((v) => !v)}
+        >
+          ❤️ お気に入り
         </button>
       </div>
 
@@ -396,6 +421,13 @@ export default function GalleryPage() {
               onClick={() => toggleFace(selected, !selected.is_face)}
             >
               {selected.is_face ? '🙅 顔画像ではない、に変更' : '🙂 顔画像として扱う、に変更'}
+            </button>
+            <button
+              className="chip"
+              onClick={() => toggleFavorite(selected, !selected.is_favorite)}
+              aria-label="お気に入り"
+            >
+              {selected.is_favorite ? '❤️ お気に入り解除' : '🤍 お気に入りに追加'}
             </button>
           </div>
         </div>

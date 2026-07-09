@@ -16,6 +16,7 @@ export type MediaRow = {
   posted_at: Date;
   is_face: boolean | null;
   face_confidence: number | null;
+  is_favorite: boolean;
   backup_attempts: number;
   revealed: boolean;
 };
@@ -31,6 +32,7 @@ function fromDoc(doc: FirebaseFirestore.QueryDocumentSnapshot): MediaRow {
     posted_at: (data.posted_at as Timestamp).toDate(),
     is_face: data.is_face ?? null,
     face_confidence: data.face_confidence ?? null,
+    is_favorite: data.is_favorite ?? false,
     backup_attempts: data.backup_attempts ?? 0,
     revealed: data.revealed,
   };
@@ -63,6 +65,7 @@ export async function insertMediaBatch(
         is_face: null,
         face_confidence: null,
         face_reviewed: false,
+        is_favorite: false,
         revealed,
         created_at: FieldValue.serverTimestamp(),
       });
@@ -79,10 +82,11 @@ export async function listMedia(params: {
   uid: string;
   xUserIds: string[];
   faceOnly: boolean;
+  favoriteOnly: boolean;
   cursor: MediaCursor | null;
   limit: number;
 }): Promise<MediaRow[]> {
-  const { uid, xUserIds, faceOnly, cursor, limit } = params;
+  const { uid, xUserIds, faceOnly, favoriteOnly, cursor, limit } = params;
   if (xUserIds.length === 0) return [];
 
   let query: FirebaseFirestore.Query =
@@ -92,6 +96,7 @@ export async function listMedia(params: {
 
   query = query.where('revealed', '==', true);
   if (faceOnly) query = query.where('is_face', '==', true);
+  if (favoriteOnly) query = query.where('is_favorite', '==', true);
   query = query.orderBy('posted_at', 'desc').orderBy('media_key', 'desc');
   if (cursor) {
     query = query.startAfter(Timestamp.fromDate(cursor.postedAt), cursor.mediaKey);
@@ -109,6 +114,10 @@ export async function getMedia(uid: string, mediaKey: string): Promise<MediaRow 
 
 export async function updateFace(uid: string, mediaKey: string, isFace: boolean): Promise<void> {
   await col(uid).doc(mediaKey).update({ is_face: isFace, face_reviewed: true });
+}
+
+export async function updateFavorite(uid: string, mediaKey: string, isFavorite: boolean): Promise<void> {
+  await col(uid).doc(mediaKey).update({ is_favorite: isFavorite });
 }
 
 export async function countForXUserId(uid: string, xUserId: string): Promise<number> {

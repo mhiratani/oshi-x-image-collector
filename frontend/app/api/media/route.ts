@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   const cursor = parseCursor(searchParams.get('cursor'));
   const accountFilter = searchParams.get('account')?.split(',').filter(Boolean) ?? [];
   const faceOnly = searchParams.get('faceOnly') === 'true';
+  const favoriteOnly = searchParams.get('favoriteOnly') === 'true';
 
   const accounts = await targetAccounts.listAll(uid);
   const screenNameByXUserId = new Map(accounts.map((a) => [a.x_user_id, a.screen_name]));
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
     xUserIds = xUserIds.filter((id) => allowed.has(id));
   }
 
-  const rows = await listMedia({ uid, xUserIds, faceOnly, cursor, limit: MEDIA_PAGE_SIZE });
+  const rows = await listMedia({ uid, xUserIds, faceOnly, favoriteOnly, cursor, limit: MEDIA_PAGE_SIZE });
   const items = rows.map((m) => ({
     media_key: m.media_key,
     tweet_id: m.tweet_id,
@@ -42,6 +43,7 @@ export async function GET(req: NextRequest) {
     r2_backup_url: m.r2_backup_url,
     posted_at: m.posted_at,
     is_face: m.is_face,
+    is_favorite: m.is_favorite,
     screen_name: screenNameByXUserId.get(m.x_user_id) ?? null,
   }));
 
