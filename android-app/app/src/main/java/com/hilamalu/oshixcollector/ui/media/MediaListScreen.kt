@@ -2,7 +2,6 @@ package com.hilamalu.oshixcollector.ui.media
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,35 +12,44 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -62,13 +71,14 @@ import com.hilamalu.oshixcollector.data.db.MediaAssetEntity
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
     val media by viewModel.media.collectAsState()
     val accountChips by viewModel.accountChips.collectAsState()
-    val selectedAccountIds by viewModel.selectedAccountIds.collectAsState()
+    val selectedAccountId by viewModel.selectedAccountId.collectAsState()
     val screenNames by viewModel.screenNameByUserId.collectAsState()
     val backfillState by viewModel.backfillState.collectAsState()
     val isFaceOnly by viewModel.isFaceOnly.collectAsState()
@@ -76,6 +86,8 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
 
     // 拡大表示中の画像（Web版のselected。mediaKeyで持つことでリスト更新時のずれを防ぐ）
     var selectedKey by rememberSaveable { mutableStateOf<String?>(null) }
+    // ユーザー絞り込みシートの開閉
+    var showAccountSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel.errorMessage) {
         viewModel.errorMessage?.let { message ->
@@ -120,31 +132,14 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
             )
         },
 
+        floatingActionButton = {
+            FloatingActionButton(onClick = { showAccountSheet = true }) {
+                Icon(Icons.Filled.AccountCircle, contentDescription = stringResource(R.string.media_filter_by_account))
+            }
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            // Web版のtoolbar: すべて / @name (枚数) / 顔のみ
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = selectedAccountIds.isEmpty(),
-                    onClick = { viewModel.clearAccountFilter() },
-                    label = { Text(stringResource(R.string.media_filter_all)) }
-                )
-                accountChips.forEach { chip ->
-                    FilterChip(
-                        selected = chip.xUserId in selectedAccountIds,
-                        onClick = { viewModel.toggleAccountFilter(chip.xUserId) },
-                        label = { Text("@${chip.screenName} (${chip.mediaCount})") }
-                    )
-                }
-            }
-
             if (media.isEmpty() && backfillState.allDone && !viewModel.isBackfilling) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(
@@ -167,7 +162,8 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(3),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(4.dp),
+                    // 右下のFABが最終行や過去読み込みボタンに重ならないよう下部に余白を確保
+                    contentPadding = PaddingValues(start = 4.dp, top = 4.dp, end = 4.dp, bottom = 88.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -175,7 +171,7 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
                         MediaTile(
                             asset = asset,
                             // Web版と同じく1アカウント絞り込み中はバッジを出さない
-                            badgeScreenName = if (selectedAccountIds.size != 1) screenNames[asset.xUserId] else null,
+                            badgeScreenName = if (selectedAccountId == null) screenNames[asset.xUserId] else null,
                             onClick = { selectedKey = asset.mediaKey }
                         )
                     }
@@ -204,6 +200,69 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
             onOverrideFace = { asset, isFace -> viewModel.overrideFace(asset.mediaKey, isFace) },
             onClose = { selectedKey = null }
         )
+    }
+
+    // FABから開くユーザー絞り込みシート（単一選択。「すべて」で解除）
+    if (showAccountSheet) {
+        AccountFilterSheet(
+            accountChips = accountChips,
+            selectedAccountId = selectedAccountId,
+            onSelect = { xUserId -> viewModel.selectAccountFilter(xUserId) },
+            onDismiss = { showAccountSheet = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AccountFilterSheet(
+    accountChips: List<AccountChip>,
+    selectedAccountId: String?,
+    onSelect: (String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+
+    // 選択後はhide()のアニメーション完了を待ってから閉じる（即座にshowAccountSheet=falseにすると
+    // ModalBottomSheetのクローズアニメーションがスキップされ、見た目が瞬間消滅してしまうため）
+    fun selectAndClose(xUserId: String?) {
+        onSelect(xUserId)
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            if (!sheetState.isVisible) onDismiss()
+        }
+    }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        LazyColumn {
+            item {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.media_filter_all)) },
+                    leadingContent = {
+                        RadioButton(selected = selectedAccountId == null, onClick = null)
+                    },
+                    modifier = Modifier.selectable(
+                        selected = selectedAccountId == null,
+                        onClick = { selectAndClose(null) },
+                        role = Role.RadioButton
+                    )
+                )
+            }
+            items(accountChips) { chip ->
+                ListItem(
+                    headlineContent = { Text("@${chip.screenName}") },
+                    leadingContent = {
+                        RadioButton(selected = chip.xUserId == selectedAccountId, onClick = null)
+                    },
+                    trailingContent = { Text("${chip.mediaCount}") },
+                    modifier = Modifier.selectable(
+                        selected = chip.xUserId == selectedAccountId,
+                        onClick = { selectAndClose(chip.xUserId) },
+                        role = Role.RadioButton
+                    )
+                )
+            }
+        }
     }
 }
 
@@ -273,15 +332,6 @@ private fun BackfillFooter(
                     CircularProgressIndicator(modifier = Modifier.padding(2.dp))
                     Text(stringResource(R.string.media_backfill_running))
                 }
-            }
-            state.multiFilterSelected -> {
-                Text(
-                    stringResource(R.string.media_backfill_multi_filter),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 12.dp)
-                )
             }
             state.allDone -> {
                 if (itemCount > 0) {

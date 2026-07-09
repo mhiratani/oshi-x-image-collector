@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** 絞り込みチップ1つ分の表示データ（Web版toolbarの「@name (枚数)」に対応）。 */
@@ -30,9 +29,7 @@ data class AccountChip(
 /** 一覧末尾のバックフィル操作の状態（Web版のbackfill statusに対応）。 */
 data class BackfillUiState(
     /** これ以上遡れる対象アカウントが1件も無い（Web版のallDone）。 */
-    val allDone: Boolean,
-    /** 複数アカウント絞り込み中はバックフィル不可（Web版と同じ制約）。 */
-    val multiFilterSelected: Boolean
+    val allDone: Boolean
 )
 
 // X APIの生エラーをユーザー向けメッセージに変換（Web版page.tsxのfriendlyApiError移植）
@@ -59,13 +56,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val faceOnly = MutableStateFlow(false)
 
-    /** アカウント絞り込み（xUserIdの集合。空=すべて）。Web版のfilter: string[]に対応。 */
-    private val accountFilter = MutableStateFlow<Set<String>>(emptySet())
+    /** アカウント絞り込み（xUserId。null=すべて）。 */
+    private val accountFilter = MutableStateFlow<String?>(null)
 
     val media: StateFlow<List<MediaAssetEntity>> =
         combine(repository.media, faceOnly, accountFilter) { assets, faceOnlyEnabled, filter ->
             assets
-                .let { if (filter.isEmpty()) it else it.filter { a -> a.xUserId in filter } }
+                .let { if (filter == null) it else it.filter { a -> a.xUserId == filter } }
                 .let { if (faceOnlyEnabled) it.filter { a -> a.isFace == true } else it }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -89,19 +86,16 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val backfillState: StateFlow<BackfillUiState> =
         combine(repository.accounts, accountFilter) { accounts, filter ->
             val targets = accounts.filter { it.xUserId != null }
-                .let { if (filter.isEmpty()) it else it.filter { a -> a.xUserId in filter } }
-            BackfillUiState(
-                allDone = targets.isEmpty() || targets.all { it.backfillDone },
-                multiFilterSelected = filter.size > 1
-            )
+                .let { if (filter == null) it else it.filter { a -> a.xUserId == filter } }
+            BackfillUiState(allDone = targets.isEmpty() || targets.all { it.backfillDone })
         }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
-            BackfillUiState(allDone = true, multiFilterSelected = false)
+            BackfillUiState(allDone = true)
         )
 
     val isFaceOnly: StateFlow<Boolean> = faceOnly
-    val selectedAccountIds: StateFlow<Set<String>> = accountFilter
+    val selectedAccountId: StateFlow<String?> = accountFilter
 
     var isRefreshing by mutableStateOf(false)
         private set
@@ -164,13 +158,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun backfill() {
         if (isBackfilling) return
-        val filter = accountFilter.value
-        if (filter.size > 1) return
         viewModelScope.launch {
             isBackfilling = true
             errorMessage = null
             try {
-                repository.backfillAll(targetXUserId = filter.singleOrNull())
+                repository.backfillAll(targetXUserId = accountFilter.value)
             } catch (e: Exception) {
                 errorMessage = e.message?.let(::friendlyApiError)
             } finally {
@@ -194,16 +186,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         faceOnly.value = enabled
     }
 
-    /** アカウントチップのタップ（Web版と同じトグル動作）。 */
-    fun toggleAccountFilter(xUserId: String) {
-        accountFilter.update { current ->
-            if (xUserId in current) current - xUserId else current + xUserId
-        }
-    }
-
-    /** 「すべて」チップのタップ。 */
-    fun clearAccountFilter() {
-        accountFilter.value = emptySet()
+    /** ユーザー絞り込みシートでの選択。nullで「すべて」に戻す。 */
+    fun selectAccountFilter(xUserId: String?) {
+        accountFilter.value = xUserId
     }
 
     fun dismissError() {

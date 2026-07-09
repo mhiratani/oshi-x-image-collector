@@ -24,10 +24,10 @@
     <string name="media_empty_face_only">顔が写っている画像がまだありません</string>
     <string name="media_face_only_filter">🙂 顔のみ</string>
     <string name="media_filter_all">すべて</string>
+    <string name="media_filter_by_account">ユーザーで絞り込み</string>
     <string name="media_all_shown">ストック済み %1$d 枚をすべて表示しました</string>
     <string name="media_backfill">🕰 過去の投稿をさらに読み込む</string>
     <string name="media_backfill_running">🕰 X APIから過去の投稿を取得中…</string>
-    <string name="media_backfill_multi_filter">複数アカウントを選択中は過去の投稿を読み込めません。1つに絞り込んでください。</string>
     <string name="media_backfill_all_done">これ以上遡れる過去の投稿はありません</string>
     <string name="media_open_tweet">元ツイートを開く ↗</string>
     <string name="media_face_mark_true">🙂 顔画像として扱う、に変更</string>
