@@ -10,6 +10,7 @@ import com.hilamalu.oshixcollector.data.MediaRepository
 import com.hilamalu.oshixcollector.data.backup.CloudBackupSettings
 import com.hilamalu.oshixcollector.data.backup.GoogleAuthManager
 import com.hilamalu.oshixcollector.data.db.MediaAssetEntity
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 /** 絞り込みチップ1つ分の表示データ（Web版toolbarの「@name (枚数)」に対応）。 */
 data class AccountChip(
@@ -31,6 +33,9 @@ data class BackfillUiState(
     /** これ以上遡れる対象アカウントが1件も無い（Web版のallDone）。 */
     val allDone: Boolean
 )
+
+// Firestore/ML Kitの呼び出しにタイムアウトが無く、通信が固まるとスピナーが無限に回り続けるため上限を設ける
+private const val SYNC_TIMEOUT_MS = 120_000L
 
 // X APIの生エラーをユーザー向けメッセージに変換（Web版page.tsxのfriendlyApiError移植）
 private fun friendlyApiError(msg: String): String {
@@ -103,6 +108,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     var isBackfilling by mutableStateOf(false)
         private set
 
+    /** 顔判定中の残り件数（0なら非表示）。「最新を取得」「過去の投稿を読み込む」の完了後に走る別枠の処理。 */
+    var faceDetectionRemaining by mutableStateOf(0)
+        private set
+
+    private var isDetectingFaces = false
+
     var errorMessage by mutableStateOf<String?>(null)
         private set
 
@@ -120,35 +131,41 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             isRefreshing = true
             errorMessage = null
             try {
-                val messages = mutableListOf<String>()
+                withTimeout(SYNC_TIMEOUT_MS) {
+                    val messages = mutableListOf<String>()
 
-                if (cloudBackupSettings.isEnabled.first() && googleAuthManager.currentUser != null) {
-                    try {
-                        val synced = repository.restoreFromCloud()
-                        if (synced.mediaRowsRestored > 0 || synced.imagesDownloaded > 0 || synced.accountsRestored > 0) {
-                            messages += "クラウドからメタデータ${synced.mediaRowsRestored}件・画像${synced.imagesDownloaded}件を同期"
+                    if (cloudBackupSettings.isEnabled.first() && googleAuthManager.currentUser != null) {
+                        try {
+                            val synced = repository.restoreFromCloud()
+                            if (synced.mediaRowsRestored > 0 || synced.imagesDownloaded > 0 || synced.accountsRestored > 0) {
+                                messages += "クラウドからメタデータ${synced.mediaRowsRestored}件・画像${synced.imagesDownloaded}件を同期"
+                            }
+                        } catch (e: Exception) {
+                            errorMessage = "クラウド同期に失敗しました: ${e.message}"
                         }
-                    } catch (e: Exception) {
-                        errorMessage = "クラウド同期に失敗しました: ${e.message}"
+                    }
+
+                    val result = repository.refreshAll()
+                    messages +=
+                        if (result.newMediaCount > 0) "新着画像 ${result.newMediaCount}枚を取得しました"
+                        else "新着はありませんでした"
+                    syncMessage = messages.joinToString("、")
+
+                    if (result.failedScreenNames.isNotEmpty()) {
+                        val names = result.failedScreenNames.joinToString(", ") { "@$it" }
+                        errorMessage = "$names の取得に失敗しました" +
+                            (result.firstError?.let { ": ${friendlyApiError(it)}" } ?: "")
                     }
                 }
-
-                val result = repository.refreshAll()
-                messages +=
-                    if (result.newMediaCount > 0) "新着画像 ${result.newMediaCount}枚を取得しました"
-                    else "新着はありませんでした"
-                syncMessage = messages.joinToString("、")
-
-                if (result.failedScreenNames.isNotEmpty()) {
-                    val names = result.failedScreenNames.joinToString(", ") { "@$it" }
-                    errorMessage = "$names の取得に失敗しました" +
-                        (result.firstError?.let { ": ${friendlyApiError(it)}" } ?: "")
-                }
+            } catch (e: TimeoutCancellationException) {
+                errorMessage = "同期がタイムアウトしました。ネットワーク状況を確認してもう一度お試しください。"
             } catch (e: Exception) {
                 errorMessage = e.message?.let(::friendlyApiError)
             } finally {
                 isRefreshing = false
             }
+            // 顔判定はクラウドバックアップまでの完了を待たせず、別枠のインジケータで進める
+            runFaceDetection()
         }
     }
 
@@ -162,11 +179,34 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             isBackfilling = true
             errorMessage = null
             try {
-                repository.backfillAll(targetXUserId = accountFilter.value)
+                withTimeout(SYNC_TIMEOUT_MS) {
+                    repository.backfillAll(targetXUserId = accountFilter.value)
+                }
+            } catch (e: TimeoutCancellationException) {
+                errorMessage = "取得がタイムアウトしました。ネットワーク状況を確認してもう一度お試しください。"
             } catch (e: Exception) {
                 errorMessage = e.message?.let(::friendlyApiError)
             } finally {
                 isBackfilling = false
+            }
+            runFaceDetection()
+        }
+    }
+
+    /** 未判定画像の顔判定をまとめて行う。多重起動はガードする。 */
+    private fun runFaceDetection() {
+        if (isDetectingFaces) return
+        isDetectingFaces = true
+        viewModelScope.launch {
+            try {
+                repository.detectPendingFaces { completed, total ->
+                    faceDetectionRemaining = total - completed
+                }
+            } catch (e: Exception) {
+                errorMessage = e.message?.let(::friendlyApiError)
+            } finally {
+                faceDetectionRemaining = 0
+                isDetectingFaces = false
             }
         }
     }

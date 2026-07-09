@@ -150,11 +150,9 @@ class MediaRepository(context: Context) {
                     quantity = tweetsCount
                 )
 
+                // 顔判定はクラウドバックアップ完了後に別枠(detectPendingFaces)でまとめて行うため、ここでは行わない
                 val newEntities = result.media.map { photo ->
                     val localPath = runCatching { imageStorage.download(photo.mediaKey, photo.url) }.getOrNull()
-                    val faceResult = localPath
-                        ?.let { FaceDetector.detect(File(it)) }
-                        as? FaceDetector.Result.Detected
                     MediaAssetEntity(
                         mediaKey = photo.mediaKey,
                         tweetId = photo.tweetId,
@@ -164,8 +162,8 @@ class MediaRepository(context: Context) {
                         r2BackupUrl = null,
                         postedAt = photo.postedAt,
                         createdAt = System.currentTimeMillis(),
-                        isFace = faceResult?.isFace,
-                        faceConfidence = faceResult?.confidence
+                        isFace = null,
+                        faceConfidence = null
                     )
                 }
                 if (newEntities.isNotEmpty()) {
@@ -196,8 +194,6 @@ class MediaRepository(context: Context) {
                 if (firstError == null) firstError = e.message
             }
         }
-
-        detectPendingFaces(backupEnabled)
 
         return RefreshResult(newMediaCount, failedScreenNames, firstError)
     }
@@ -235,11 +231,9 @@ class MediaRepository(context: Context) {
                     quantity = tweetsCount
                 )
 
+                // 顔判定はクラウドバックアップ完了後に別枠(detectPendingFaces)でまとめて行うため、ここでは行わない
                 val newEntities = result.media.map { photo ->
                     val localPath = runCatching { imageStorage.download(photo.mediaKey, photo.url) }.getOrNull()
-                    val faceResult = localPath
-                        ?.let { FaceDetector.detect(File(it)) }
-                        as? FaceDetector.Result.Detected
                     MediaAssetEntity(
                         mediaKey = photo.mediaKey,
                         tweetId = photo.tweetId,
@@ -249,8 +243,8 @@ class MediaRepository(context: Context) {
                         r2BackupUrl = null,
                         postedAt = photo.postedAt,
                         createdAt = System.currentTimeMillis(),
-                        isFace = faceResult?.isFace,
-                        faceConfidence = faceResult?.confidence
+                        isFace = null,
+                        faceConfidence = null
                     )
                 }
                 if (newEntities.isNotEmpty()) {
@@ -278,29 +272,32 @@ class MediaRepository(context: Context) {
                 Log.w(TAG, "backfill failed for @${account.screenName}", e)
             }
         }
-
-        detectPendingFaces(backupEnabled)
     }
 
     /**
-     * 顔検出モデルが未取得だった等の理由で判定できなかった画像（[frontend/worker/faceDetect.js]
-     * と同じ対象条件: `isFace IS NULL AND NOT faceReviewed`）をまとめて再試行する。
+     * 未判定（[frontend/worker/faceDetect.js]と同じ対象条件: `isFace IS NULL AND NOT faceReviewed`）の
+     * 画像をまとめて顔判定する。「最新を取得」「過去の投稿を読み込む」の完了後に呼ぶ想定
+     * （クラウドバックアップ完了を顔判定の完了で待たせないよう、あえて別枠の呼び出しにしている）。
      * クラウドバックアップの有無に関わらず常に実行する（顔判定はローカル機能のため）。
      */
-    private suspend fun detectPendingFaces(backupEnabled: Boolean) {
+    suspend fun detectPendingFaces(onProgress: (completed: Int, total: Int) -> Unit = { _, _ -> }) {
         val pending = mediaAssetDao.getPendingFaceDetection()
         if (pending.isEmpty()) return
+        val backupEnabled = cloudBackupSettings.isEnabled.first()
 
         val updated = mutableListOf<MediaAssetEntity>()
-        for (asset in pending) {
-            val localPath = asset.localImagePath ?: continue
-            when (val result = FaceDetector.detect(File(localPath))) {
-                is FaceDetector.Result.Detected -> {
-                    mediaAssetDao.updateFaceResult(asset.mediaKey, result.isFace, result.confidence)
-                    updated += asset.copy(isFace = result.isFace, faceConfidence = result.confidence)
+        pending.forEachIndexed { index, asset ->
+            val localPath = asset.localImagePath
+            if (localPath != null) {
+                when (val result = FaceDetector.detect(File(localPath))) {
+                    is FaceDetector.Result.Detected -> {
+                        mediaAssetDao.updateFaceResult(asset.mediaKey, result.isFace, result.confidence)
+                        updated += asset.copy(isFace = result.isFace, faceConfidence = result.confidence)
+                    }
+                    FaceDetector.Result.Unavailable -> Unit // 次回に再試行
                 }
-                FaceDetector.Result.Unavailable -> Unit // 次回の「最新を取得」で再試行
             }
+            onProgress(index + 1, pending.size)
         }
 
         if (backupEnabled && updated.isNotEmpty()) {

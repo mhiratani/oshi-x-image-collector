@@ -117,6 +117,13 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
                             onClick = { viewModel.setFaceOnly(!isFaceOnly) },
                             label = { Text(stringResource(R.string.media_face_only_filter)) }
                         )
+                        if (viewModel.faceDetectionRemaining > 0) {
+                            Text(
+                                stringResource(R.string.media_face_detecting, viewModel.faceDetectionRemaining),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
                     }
                 },
                 actions = {

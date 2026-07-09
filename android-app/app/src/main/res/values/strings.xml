@@ -23,6 +23,7 @@
     <string name="media_empty">画像がまだありません\nアカウントタブから追跡アカウントを追加してください</string>
     <string name="media_empty_face_only">顔が写っている画像がまだありません</string>
     <string name="media_face_only_filter">🙂 顔のみ</string>
+    <string name="media_face_detecting">顔判定中: %1$d件</string>
     <string name="media_filter_all">すべて</string>
     <string name="media_filter_by_account">ユーザーで絞り込み</string>
     <string name="media_all_shown">ストック済み %1$d 枚をすべて表示しました</string>
