@@ -96,7 +96,19 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.nav_media)) },
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(stringResource(R.string.nav_media))
+                        FilterChip(
+                            selected = isFaceOnly,
+                            onClick = { viewModel.setFaceOnly(!isFaceOnly) },
+                            label = { Text(stringResource(R.string.media_face_only_filter)) }
+                        )
+                    }
+                },
                 actions = {
                     IconButton(onClick = { viewModel.syncFromCloud() }, enabled = !viewModel.isSyncing) {
                         if (viewModel.isSyncing) {
@@ -145,11 +157,6 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
                         label = { Text("@${chip.screenName} (${chip.mediaCount})") }
                     )
                 }
-                FilterChip(
-                    selected = isFaceOnly,
-                    onClick = { viewModel.setFaceOnly(!isFaceOnly) },
-                    label = { Text(stringResource(R.string.media_face_only_filter)) }
-                )
             }
 
             if (media.isEmpty() && backfillState.allDone && !viewModel.isBackfilling) {
