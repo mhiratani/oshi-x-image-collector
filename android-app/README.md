@@ -21,6 +21,17 @@ Gradle構成・`build_apk.sh` の作りは同リポジトリ管理者の [oshi-w
 - `build_apk.sh` : 署名付きリリースAPK/AABのビルドスクリプト（keystoreは初回実行時に自動生成、`dist/` はgit管理外）
 - `firestore.rules` : クラウドバックアップ用Firestoreセキュリティルール（Firebaseコンソールに貼り付ける）
 
+## GitHub ActionsでのAPK自動ビルド
+
+mainブランチの `android-app/` 配下が更新されると、GitHub Actions（[`.github/workflows/android-apk.yml`](../.github/workflows/android-apk.yml)）が署名付きAPKをビルドし、Release **android-latest** に添付する。スマホのブラウザ/GitHubアプリでReleaseページを開けば、そのままAPKをダウンロード・インストールできる（手動実行はActionsタブのworkflow_dispatchから）。
+
+初回セットアップ（1回だけ）: 手元PCの `android-app/dist/` にあるkeystoreをリポジトリのSecrets（Settings > Secrets and variables > Actions）へ登録する。**インストール済みAPKと同じ署名にするため必須**（別のkeystoreで署名すると上書きインストールできない）。
+
+| Secret名 | 値 |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 dist/oshi-x-image-collector-release.keystore` の出力 |
+| `ANDROID_KEYSTORE_PASSWORD` | `dist/keystore.pass` の中身 |
+
 ## セットアップ
 
 ### 1. Android SDK

@@ -1,0 +1,66 @@
+# mainブランチのandroid-app/更新時に署名付きAPKをビルドし、Release「android-latest」に添付する。
+# スマホのブラウザ/GitHubアプリからReleaseページを開けばAPKを直接ダウンロード・インストールできる。
+#
+# 事前準備(1回だけ): 手元PCのkeystore(android-app/dist/)をSecretsに登録する。
+#   ANDROID_KEYSTORE_BASE64   = base64 -w0 dist/oshi-x-image-collector-release.keystore の出力
+#   ANDROID_KEYSTORE_PASSWORD = dist/keystore.pass の中身
+# インストール済みAPKと同じ署名にするため必須(別keystoreだと上書きインストールできない)。
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android-app/**'
+      - '.github/workflows/android-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: keystoreをSecretsから復元
+        working-directory: android-app
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASS" ]; then
+            echo "::error::Secrets ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD が未設定です。android-app/README.md の手順で登録してください。"
+            exit 1
+          fi
+          mkdir -p dist
+          echo "$KEYSTORE_B64" | base64 -d > dist/oshi-x-image-collector-release.keystore
+          printf '%s' "$KEYSTORE_PASS" > dist/keystore.pass
+          chmod 600 dist/keystore.pass
+
+      - name: 署名付きAPKをビルド (build_apk.sh)
+        working-directory: android-app
+        run: ./build_apk.sh
+
+      - name: Release「android-latest」にAPKを添付
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: Android APK (latest)
+          prerelease: true
+          body: |
+            mainブランチの最新Android APK(GitHub Actionsによる自動ビルド)。
+            コミット: ${{ github.sha }}
+          files: android-app/dist/oshi-x-image-collector-release-latest.apk
