@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Auto Backup rules (Android 11 and below).
-  Empty for now — no local database/file storage exists yet in this skeleton.
-  Add <include> entries here once Room DB / local image storage are introduced.
+  収集した画像(files/media/)とSQLite DBはアプリ独自のクラウドバックアップ機能(Firestore/R2)で
+  管理するため、Android標準のAuto Backupの対象からは除外する。
 -->
 <full-backup-content>
+    <exclude domain="database" />
+    <exclude domain="file" path="media/" />
 </full-backup-content>
