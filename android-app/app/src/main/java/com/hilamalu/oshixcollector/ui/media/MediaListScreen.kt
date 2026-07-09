@@ -24,10 +24,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -74,7 +72,6 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
     val screenNames by viewModel.screenNameByUserId.collectAsState()
     val backfillState by viewModel.backfillState.collectAsState()
     val isFaceOnly by viewModel.isFaceOnly.collectAsState()
-    val isCloudBackupEnabled by viewModel.isCloudBackupEnabled.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
     // 拡大表示中の画像（Web版のselected。mediaKeyで持つことでリスト更新時のずれを防ぐ）
@@ -111,33 +108,19 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
                     }
                 },
                 actions = {
-                    if (isCloudBackupEnabled) {
-                        IconButton(onClick = { viewModel.syncFromCloud() }, enabled = !viewModel.isSyncing) {
-                            if (viewModel.isSyncing) {
-                                CircularProgressIndicator(modifier = Modifier.padding(4.dp))
-                            } else {
-                                Icon(Icons.Filled.Sync, contentDescription = stringResource(R.string.media_sync))
-                            }
+                    // 「最新を取得」(クラウド同期→X API取得)。旧クラウド同期アイコンの位置に配置
+                    IconButton(onClick = { viewModel.refresh() }, enabled = !viewModel.isRefreshing) {
+                        if (viewModel.isRefreshing) {
+                            CircularProgressIndicator(modifier = Modifier.padding(4.dp))
+                        } else {
+                            Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.media_refresh))
                         }
                     }
                 }
             )
         },
 
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                text = { Text(stringResource(R.string.media_refresh)) },
-                icon = {
-                    if (viewModel.isRefreshing) {
-                        CircularProgressIndicator(modifier = Modifier.padding(2.dp))
-                    } else {
-                        Icon(Icons.Filled.Refresh, contentDescription = null)
-                    }
-                },
-                onClick = { viewModel.refresh() }
-            )
-        }
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             // Web版のtoolbar: すべて / @name (枚数) / 顔のみ

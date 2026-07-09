@@ -103,16 +103,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val isFaceOnly: StateFlow<Boolean> = faceOnly
     val selectedAccountIds: StateFlow<Set<String>> = accountFilter
 
-    /** トップバーの同期アイコンの表示条件。クラウドバックアップ無効時はアイコン自体を出さない。 */
-    val isCloudBackupEnabled: StateFlow<Boolean> =
-        cloudBackupSettings.isEnabled
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
-
     var isRefreshing by mutableStateOf(false)
-        private set
-
-    /** トップバーの同期アイコンの実行中状態。「最新を取得」（[isRefreshing]）とは別の操作。 */
-    var isSyncing by mutableStateOf(false)
         private set
 
     var isBackfilling by mutableStateOf(false)
@@ -124,13 +115,41 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     var syncMessage by mutableStateOf<String?>(null)
         private set
 
+    /**
+     * 「最新を取得」。クラウドバックアップ有効かつサインイン済みなら、先にクラウドの
+     * 最新状態をローカルへ取り込み（pull）、続けてX APIから新着を取得する。
+     * クラウド同期の失敗はX取得を妨げない（エラー表示のみ）。
+     */
     fun refresh() {
         if (isRefreshing) return
         viewModelScope.launch {
             isRefreshing = true
             errorMessage = null
             try {
-                repository.refreshAll()
+                val messages = mutableListOf<String>()
+
+                if (cloudBackupSettings.isEnabled.first() && googleAuthManager.currentUser != null) {
+                    try {
+                        val synced = repository.restoreFromCloud()
+                        if (synced.mediaRowsRestored > 0 || synced.imagesDownloaded > 0 || synced.accountsRestored > 0) {
+                            messages += "クラウドからメタデータ${synced.mediaRowsRestored}件・画像${synced.imagesDownloaded}件を同期"
+                        }
+                    } catch (e: Exception) {
+                        errorMessage = "クラウド同期に失敗しました: ${e.message}"
+                    }
+                }
+
+                val result = repository.refreshAll()
+                messages +=
+                    if (result.newMediaCount > 0) "新着画像 ${result.newMediaCount}枚を取得しました"
+                    else "新着はありませんでした"
+                syncMessage = messages.joinToString("、")
+
+                if (result.failedScreenNames.isNotEmpty()) {
+                    val names = result.failedScreenNames.joinToString(", ") { "@$it" }
+                    errorMessage = "$names の取得に失敗しました" +
+                        (result.firstError?.let { ": ${friendlyApiError(it)}" } ?: "")
+                }
             } catch (e: Exception) {
                 errorMessage = e.message?.let(::friendlyApiError)
             } finally {
@@ -156,34 +175,6 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                 errorMessage = e.message?.let(::friendlyApiError)
             } finally {
                 isBackfilling = false
-            }
-        }
-    }
-
-    /**
-     * トップバーの同期アイコンから呼ぶ。クラウドの最新状態をローカルへ取り込む（pull）。
-     * クラウドバックアップ未設定/未サインインの場合はサインインを促す（既存のSettings/Onboardingと同様）。
-     */
-    fun syncFromCloud() {
-        if (isSyncing) return
-        viewModelScope.launch {
-            isSyncing = true
-            errorMessage = null
-            try {
-                if (!cloudBackupSettings.isEnabled.first()) {
-                    errorMessage = "設定画面でクラウドバックアップを有効にしてください"
-                    return@launch
-                }
-                if (googleAuthManager.currentUser == null) {
-                    googleAuthManager.signIn()
-                }
-                val result = repository.restoreFromCloud()
-                syncMessage =
-                    "同期完了: アカウント${result.accountsRestored}件、メタデータ${result.mediaRowsRestored}件、画像${result.imagesDownloaded}件ダウンロード"
-            } catch (e: Exception) {
-                errorMessage = e.message
-            } finally {
-                isSyncing = false
             }
         }
     }

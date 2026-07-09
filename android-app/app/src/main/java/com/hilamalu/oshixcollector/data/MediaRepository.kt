@@ -41,6 +41,16 @@ class MediaRepository(context: Context) {
         val imagesFailed: Int
     )
 
+    /** 「最新を取得」の実行結果サマリー（スナックバー表示用）。 */
+    data class RefreshResult(
+        /** 今回新たに保存した画像の枚数（重複除外後）。 */
+        val newMediaCount: Int,
+        /** 取得に失敗したアカウント（screenName）。 */
+        val failedScreenNames: List<String>,
+        /** 最初に発生したエラーメッセージ（friendlyApiError変換前の生メッセージ）。 */
+        val firstError: String?
+    )
+
     private val db = AppDatabase.getDatabase(context)
     private val targetAccountDao = db.targetAccountDao()
     private val mediaAssetDao = db.mediaAssetDao()
@@ -91,9 +101,13 @@ class MediaRepository(context: Context) {
     }
 
     /** 「最新を取得」ボタンから呼ぶ。全追跡アカウントについて新着を取得しローカル保存する。 */
-    suspend fun refreshAll(maxPagesPerAccount: Int = 3) {
+    suspend fun refreshAll(maxPagesPerAccount: Int = 3): RefreshResult {
         val client = xApiClient()
         val backupEnabled = cloudBackupSettings.isEnabled.first()
+
+        var newMediaCount = 0
+        val failedScreenNames = mutableListOf<String>()
+        var firstError: String? = null
 
         for (account in targetAccountDao.getAll()) {
             try {
@@ -114,7 +128,12 @@ class MediaRepository(context: Context) {
                         Log.w(TAG, "resolveUserId failed for @${account.screenName}")
                     }
                     resolved
-                } ?: continue
+                }
+                if (xUserId == null) {
+                    failedScreenNames += account.screenName
+                    if (firstError == null) firstError = "ユーザーIDの解決に失敗しました"
+                    continue
+                }
 
                 var tweetsCount = 0
                 val result = client.fetchPhotoMedia(
@@ -150,7 +169,8 @@ class MediaRepository(context: Context) {
                     )
                 }
                 if (newEntities.isNotEmpty()) {
-                    mediaAssetDao.insertAll(newEntities)
+                    // IGNORE-on-conflictのため、実際に挿入された行だけを数える
+                    newMediaCount += mediaAssetDao.insertAll(newEntities).count { it != -1L }
                 }
 
                 var updatedAccount = account.copy(
@@ -172,10 +192,14 @@ class MediaRepository(context: Context) {
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "refresh failed for @${account.screenName}", e)
+                failedScreenNames += account.screenName
+                if (firstError == null) firstError = e.message
             }
         }
 
         detectPendingFaces(backupEnabled)
+
+        return RefreshResult(newMediaCount, failedScreenNames, firstError)
     }
 
     /**

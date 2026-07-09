@@ -23,7 +23,6 @@
     <string name="media_empty">画像がまだありません\nアカウントタブから追跡アカウントを追加してください</string>
     <string name="media_empty_face_only">顔が写っている画像がまだありません</string>
     <string name="media_face_only_filter">🙂 顔のみ</string>
-    <string name="media_sync">クラウドと同期</string>
     <string name="media_filter_all">すべて</string>
     <string name="media_all_shown">ストック済み %1$d 枚をすべて表示しました</string>
     <string name="media_backfill">🕰 過去の投稿をさらに読み込む</string>
