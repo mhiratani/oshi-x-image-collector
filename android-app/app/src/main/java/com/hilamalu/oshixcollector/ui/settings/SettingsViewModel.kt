@@ -13,13 +13,18 @@ import com.hilamalu.oshixcollector.data.backup.GoogleAuthManager
 import com.hilamalu.oshixcollector.data.settings.SecureSettings
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 sealed interface RestoreUiState {
     data object Idle : RestoreUiState
     data class InProgress(val progress: MediaRepository.RestoreProgress) : RestoreUiState
-    data class Success(val result: MediaRepository.RestoreResult) : RestoreUiState
+    data class Success(
+        val result: MediaRepository.RestoreResult,
+        /** ローカルが空の状態から実行した初回復元か（表示文言を「復元完了」/「同期完了」で出し分ける）。 */
+        val isInitialRestore: Boolean
+    ) : RestoreUiState
     data class Failed(val message: String) : RestoreUiState
 }
 
@@ -31,6 +36,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     val cloudBackupEnabled: StateFlow<Boolean> = cloudBackupSettings.isEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /**
+     * ローカルにデータがあるか。復元/同期ボタンのラベル出し分けに使う
+     * （空=初回なので「クラウドから復元」、データあり=「クラウドと同期」）。
+     * 初期値trueにして、既存ユーザーに一瞬「復元」ラベルが見えるのを避ける。
+     */
+    val hasLocalData: StateFlow<Boolean> = repository.accounts
+        .map { it.isNotEmpty() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
     var xBearerToken by mutableStateOf(secureSettings.xBearerToken.orEmpty())
     var r2BucketName by mutableStateOf(secureSettings.r2BucketName.orEmpty())
@@ -69,7 +83,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
         val firebaseConfigChanged = secureSettings.firebaseApiKey != firebaseApiKey.ifBlank { null } ||
             secureSettings.firebaseProjectId != firebaseProjectId.ifBlank { null } ||
-            secureSettings.firebaseAppId != firebaseAppId.ifBlank { null }
+            secureSettings.firebaseAppId != firebaseAppId.ifBlank { null } ||
+            secureSettings.firebaseWebClientId != firebaseWebClientId.ifBlank { null }
+        if (firebaseConfigChanged) {
+            // Firebase(Google)の情報が変わったら既存のサインインは無効なので、
+            // サインアウトして「ログインする」ボタンからやり直してもらう。
+            // サインアウトは旧FirebaseAppに対して行う必要があるため、値の上書き・リセットより先に実行する。
+            googleAuthManager.signOut()
+            signedInEmail = null
+            viewModelScope.launch { cloudBackupSettings.setEnabled(false) }
+        }
         secureSettings.firebaseApiKey = firebaseApiKey.ifBlank { null }
         secureSettings.firebaseProjectId = firebaseProjectId.ifBlank { null }
         secureSettings.firebaseAppId = firebaseAppId.ifBlank { null }
@@ -92,12 +115,25 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         errorMessage = null
     }
 
+    /** 「ログインする」ボタンから呼ぶ。成功するとトグル表示に切り替わる。 */
+    fun signIn() {
+        viewModelScope.launch {
+            try {
+                signedInEmail = googleAuthManager.signIn().email
+            } catch (e: Exception) {
+                errorMessage = e.message
+            }
+        }
+    }
+
     fun setCloudBackupEnabled(enabled: Boolean) {
         viewModelScope.launch {
             if (enabled) {
                 try {
-                    val user = googleAuthManager.signIn()
-                    signedInEmail = user.email
+                    // トグルはログイン後にしか表示されないが、セッション失効時の保険として残す
+                    if (googleAuthManager.currentUser == null) {
+                        signedInEmail = googleAuthManager.signIn().email
+                    }
                     cloudBackupSettings.setEnabled(true)
                     repository.backupExistingIfEnabled()
                 } catch (e: Exception) {
@@ -112,6 +148,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun restoreFromCloud() {
         if (restoreState is RestoreUiState.InProgress) return
         viewModelScope.launch {
+            val isInitialRestore = !hasLocalData.value
             restoreState = RestoreUiState.InProgress(MediaRepository.RestoreProgress.FetchingMetadata)
             try {
                 if (googleAuthManager.currentUser == null) {
@@ -120,7 +157,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 val result = repository.restoreFromCloud { progress ->
                     restoreState = RestoreUiState.InProgress(progress)
                 }
-                restoreState = RestoreUiState.Success(result)
+                restoreState = RestoreUiState.Success(result, isInitialRestore)
             } catch (e: Exception) {
                 restoreState = RestoreUiState.Failed(e.message ?: "復元に失敗しました")
             }

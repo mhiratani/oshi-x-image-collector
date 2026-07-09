@@ -58,7 +58,7 @@
     <string name="settings_r2_secret_key">シークレットアクセスキー</string>
     <string name="settings_r2_endpoint">エンドポイント（https://&lt;ACCOUNT_ID&gt;.r2.cloudflarestorage.com）</string>
     <string name="settings_cloud_backup_section">クラウドバックアップ</string>
-    <string name="settings_cloud_backup_description">ONにするとGoogleサインインが必要です。画像本体はR2、メタデータはFirestoreへ非同期でバックアップされます（失敗してもローカルの表示には影響しません）。</string>
+    <string name="settings_cloud_backup_description">Googleでログインするとバックアップを有効にできます。画像本体はR2、メタデータはFirestoreへ非同期でバックアップされます（失敗してもローカルの表示には影響しません）。</string>
     <string name="settings_firebase_section">Firebase（Firestore同期・Googleサインイン用）</string>
     <string name="settings_firebase_description">Firebaseコンソール（https://console.firebase.google.com/）でプロジェクトを作成し、「プロジェクトの設定」に表示される値をここに入力してください（android-app/README.md参照）。</string>
     <string name="settings_firebase_api_key">APIキー</string>
@@ -66,8 +66,13 @@
     <string name="settings_firebase_app_id">アプリID（1:xxx:android:xxx）</string>
     <string name="settings_firebase_web_client_id">Google Sign-In ウェブクライアントID</string>
     <string name="settings_cloud_backup_firebase_not_configured">上記のFirebase設定を保存すると、クラウドバックアップが利用できるようになります</string>
+    <string name="settings_sign_in_description">クラウドバックアップを使うにはGoogleサインインが必要です</string>
+    <string name="settings_sign_in_button">Googleでログインする</string>
+    <string name="settings_cloud_backup_toggle_label">クラウドバックアップを有効にする</string>
     <string name="settings_cloud_backup_signed_in_as">サインイン中: %1$s</string>
     <string name="settings_cloud_restore_button">クラウドから復元</string>
+    <string name="settings_cloud_sync_button">クラウドと同期</string>
+    <string name="settings_cloud_sync_success">同期完了: アカウント%1$d件、メタデータ%2$d件、画像%3$d件ダウンロード（失敗%4$d件）</string>
     <string name="settings_cloud_restore_fetching">データを取得中…</string>
     <string name="settings_cloud_restore_downloading">画像をダウンロード中 (%1$d/%2$d)</string>
     <string name="settings_cloud_restore_success">復元完了: アカウント%1$d件、メタデータ%2$d件、画像%3$d件ダウンロード（失敗%4$d件）</string>

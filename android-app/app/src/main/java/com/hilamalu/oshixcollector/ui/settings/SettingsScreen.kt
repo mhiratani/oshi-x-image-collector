@@ -40,6 +40,7 @@ import com.hilamalu.oshixcollector.data.MediaRepository
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
     val cloudBackupEnabled by viewModel.cloudBackupEnabled.collectAsState()
+    val hasLocalData by viewModel.hasLocalData.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
@@ -173,12 +174,25 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                             stringResource(R.string.settings_cloud_backup_firebase_not_configured),
                             modifier = Modifier.padding(top = 16.dp)
                         )
+                    } else if (viewModel.signedInEmail == null) {
+                        // 未ログイン: まずGoogleサインインしてもらう（成功するとトグル表示に切り替わる）
+                        Text(
+                            stringResource(R.string.settings_sign_in_description),
+                            modifier = Modifier.padding(top = 16.dp)
+                        )
+                        Button(onClick = { viewModel.signIn() }, modifier = Modifier.padding(top = 8.dp)) {
+                            Text(stringResource(R.string.settings_sign_in_button))
+                        }
                     } else {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(top = 16.dp)
                         ) {
                             Switch(checked = cloudBackupEnabled, onCheckedChange = { viewModel.setCloudBackupEnabled(it) })
+                            Text(
+                                stringResource(R.string.settings_cloud_backup_toggle_label),
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
                         }
                         viewModel.signedInEmail?.let { email ->
                             Text(stringResource(R.string.settings_cloud_backup_signed_in_as, email))
@@ -189,7 +203,13 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                             enabled = viewModel.restoreState !is RestoreUiState.InProgress,
                             modifier = Modifier.padding(top = 8.dp)
                         ) {
-                            Text(stringResource(R.string.settings_cloud_restore_button))
+                            // 初回(ローカルが空)は「復元」、2回目以降は「同期」として同じ処理を案内する
+                            Text(
+                                stringResource(
+                                    if (hasLocalData) R.string.settings_cloud_sync_button
+                                    else R.string.settings_cloud_restore_button
+                                )
+                            )
                         }
 
                         when (val state = viewModel.restoreState) {
@@ -217,7 +237,8 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                             is RestoreUiState.Success -> LaunchedEffect(state) {
                                 snackbarHostState.showSnackbar(
                                     context.getString(
-                                        R.string.settings_cloud_restore_success,
+                                        if (state.isInitialRestore) R.string.settings_cloud_restore_success
+                                        else R.string.settings_cloud_sync_success,
                                         state.result.accountsRestored,
                                         state.result.mediaRowsRestored,
                                         state.result.imagesDownloaded,
