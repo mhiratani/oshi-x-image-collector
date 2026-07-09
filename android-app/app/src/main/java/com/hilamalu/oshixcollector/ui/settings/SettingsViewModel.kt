@@ -70,17 +70,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     var restoreState by mutableStateOf<RestoreUiState>(RestoreUiState.Idle)
         private set
 
-    var saved by mutableStateOf(false)
-        private set
-
-    fun save() {
+    /** Bearer Token欄からフォーカスが外れた時に呼ぶ（保存ボタンは無く、入力のたびに自動保存する）。 */
+    fun saveXBearerToken() {
         secureSettings.xBearerToken = xBearerToken.ifBlank { null }
+    }
+
+    /** R2欄のいずれかからフォーカスが外れた時に呼ぶ（5項目まとめて自動保存）。 */
+    fun saveR2Settings() {
         secureSettings.r2BucketName = r2BucketName.ifBlank { null }
         secureSettings.r2AccountId = r2AccountId.ifBlank { null }
         secureSettings.r2AccessKeyId = r2AccessKeyId.ifBlank { null }
         secureSettings.r2SecretAccessKey = r2SecretAccessKey.ifBlank { null }
         secureSettings.r2Endpoint = r2Endpoint.ifBlank { null }
+    }
 
+    /** Firebase欄のいずれかからフォーカスが外れた時に呼ぶ（4項目まとめて自動保存）。 */
+    fun saveFirebaseSettings() {
         val firebaseConfigChanged = secureSettings.firebaseApiKey != firebaseApiKey.ifBlank { null } ||
             secureSettings.firebaseProjectId != firebaseProjectId.ifBlank { null } ||
             secureSettings.firebaseAppId != firebaseAppId.ifBlank { null } ||
@@ -103,12 +108,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             FirebaseAppProvider.reset(getApplication<Application>())
         }
         isFirebaseConfigured = secureSettings.isFirebaseConfigured
-
-        saved = true
-    }
-
-    fun dismissSaved() {
-        saved = false
     }
 
     fun dismissError() {

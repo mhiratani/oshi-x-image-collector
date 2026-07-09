@@ -1,5 +1,6 @@
 package com.hilamalu.oshixcollector.ui.settings
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,12 +8,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -25,9 +31,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -44,16 +53,14 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
+    // R2/Firebaseの接続設定は普段は触らないため、デフォルトで折りたたんでおく
+    var r2Expanded by remember { mutableStateOf(false) }
+    var firebaseExpanded by remember { mutableStateOf(false) }
+
     LaunchedEffect(viewModel.errorMessage) {
         viewModel.errorMessage?.let { message ->
             snackbarHostState.showSnackbar(context.getString(R.string.settings_sign_in_failed, message))
             viewModel.dismissError()
-        }
-    }
-    LaunchedEffect(viewModel.saved) {
-        if (viewModel.saved) {
-            snackbarHostState.showSnackbar(context.getString(R.string.settings_saved))
-            viewModel.dismissSaved()
         }
     }
 
@@ -77,7 +84,10 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
             }
 
             ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text(stringResource(R.string.settings_x_section), style = MaterialTheme.typography.titleMedium)
                     OutlinedTextField(
                         value = viewModel.xBearerToken,
@@ -85,109 +95,145 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                         label = { Text(stringResource(R.string.settings_x_bearer_token)) },
                         visualTransformation = PasswordVisualTransformation(),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { if (!it.isFocused) viewModel.saveXBearerToken() }
                     )
                 }
             }
 
             ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(stringResource(R.string.settings_cloud_backup_section), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.settings_cloud_backup_description), modifier = Modifier.padding(vertical = 8.dp))
-
-                    Text(stringResource(R.string.settings_r2_section), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
-                    OutlinedTextField(
-                        value = viewModel.r2BucketName,
-                        onValueChange = { viewModel.r2BucketName = it },
-                        label = { Text(stringResource(R.string.settings_r2_bucket)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SectionHeader(
+                        title = stringResource(R.string.settings_r2_section),
+                        expanded = r2Expanded,
+                        onToggle = { r2Expanded = !r2Expanded }
                     )
-                    OutlinedTextField(
-                        value = viewModel.r2AccountId,
-                        onValueChange = { viewModel.r2AccountId = it },
-                        label = { Text(stringResource(R.string.settings_r2_account_id)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                    )
-                    OutlinedTextField(
-                        value = viewModel.r2AccessKeyId,
-                        onValueChange = { viewModel.r2AccessKeyId = it },
-                        label = { Text(stringResource(R.string.settings_r2_access_key)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                    )
-                    OutlinedTextField(
-                        value = viewModel.r2SecretAccessKey,
-                        onValueChange = { viewModel.r2SecretAccessKey = it },
-                        label = { Text(stringResource(R.string.settings_r2_secret_key)) },
-                        visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                    )
-                    OutlinedTextField(
-                        value = viewModel.r2Endpoint,
-                        onValueChange = { viewModel.r2Endpoint = it },
-                        label = { Text(stringResource(R.string.settings_r2_endpoint)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                    )
-
-                    Text(stringResource(R.string.settings_firebase_section), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp))
-                    Text(stringResource(R.string.settings_firebase_description), modifier = Modifier.padding(vertical = 8.dp))
-                    OutlinedTextField(
-                        value = viewModel.firebaseApiKey,
-                        onValueChange = { viewModel.firebaseApiKey = it },
-                        label = { Text(stringResource(R.string.settings_firebase_api_key)) },
-                        visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                    )
-                    OutlinedTextField(
-                        value = viewModel.firebaseProjectId,
-                        onValueChange = { viewModel.firebaseProjectId = it },
-                        label = { Text(stringResource(R.string.settings_firebase_project_id)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                    )
-                    OutlinedTextField(
-                        value = viewModel.firebaseAppId,
-                        onValueChange = { viewModel.firebaseAppId = it },
-                        label = { Text(stringResource(R.string.settings_firebase_app_id)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                    )
-                    OutlinedTextField(
-                        value = viewModel.firebaseWebClientId,
-                        onValueChange = { viewModel.firebaseWebClientId = it },
-                        label = { Text(stringResource(R.string.settings_firebase_web_client_id)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                    )
-
-                    Button(onClick = { viewModel.save() }, modifier = Modifier.padding(top = 16.dp)) {
-                        Text(stringResource(R.string.settings_save))
+                    if (r2Expanded) {
+                        OutlinedTextField(
+                            value = viewModel.r2BucketName,
+                            onValueChange = { viewModel.r2BucketName = it },
+                            label = { Text(stringResource(R.string.settings_r2_bucket)) },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { if (!it.isFocused) viewModel.saveR2Settings() }
+                        )
+                        OutlinedTextField(
+                            value = viewModel.r2AccountId,
+                            onValueChange = { viewModel.r2AccountId = it },
+                            label = { Text(stringResource(R.string.settings_r2_account_id)) },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { if (!it.isFocused) viewModel.saveR2Settings() }
+                        )
+                        OutlinedTextField(
+                            value = viewModel.r2AccessKeyId,
+                            onValueChange = { viewModel.r2AccessKeyId = it },
+                            label = { Text(stringResource(R.string.settings_r2_access_key)) },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { if (!it.isFocused) viewModel.saveR2Settings() }
+                        )
+                        OutlinedTextField(
+                            value = viewModel.r2SecretAccessKey,
+                            onValueChange = { viewModel.r2SecretAccessKey = it },
+                            label = { Text(stringResource(R.string.settings_r2_secret_key)) },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { if (!it.isFocused) viewModel.saveR2Settings() }
+                        )
+                        OutlinedTextField(
+                            value = viewModel.r2Endpoint,
+                            onValueChange = { viewModel.r2Endpoint = it },
+                            label = { Text(stringResource(R.string.settings_r2_endpoint)) },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { if (!it.isFocused) viewModel.saveR2Settings() }
+                        )
                     }
+                }
+            }
+
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    SectionHeader(
+                        title = stringResource(R.string.settings_firebase_section),
+                        expanded = firebaseExpanded,
+                        onToggle = { firebaseExpanded = !firebaseExpanded }
+                    )
+                    if (firebaseExpanded) {
+                        Text(stringResource(R.string.settings_firebase_description))
+                        OutlinedTextField(
+                            value = viewModel.firebaseApiKey,
+                            onValueChange = { viewModel.firebaseApiKey = it },
+                            label = { Text(stringResource(R.string.settings_firebase_api_key)) },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { if (!it.isFocused) viewModel.saveFirebaseSettings() }
+                        )
+                        OutlinedTextField(
+                            value = viewModel.firebaseProjectId,
+                            onValueChange = { viewModel.firebaseProjectId = it },
+                            label = { Text(stringResource(R.string.settings_firebase_project_id)) },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { if (!it.isFocused) viewModel.saveFirebaseSettings() }
+                        )
+                        OutlinedTextField(
+                            value = viewModel.firebaseAppId,
+                            onValueChange = { viewModel.firebaseAppId = it },
+                            label = { Text(stringResource(R.string.settings_firebase_app_id)) },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { if (!it.isFocused) viewModel.saveFirebaseSettings() }
+                        )
+                        OutlinedTextField(
+                            value = viewModel.firebaseWebClientId,
+                            onValueChange = { viewModel.firebaseWebClientId = it },
+                            label = { Text(stringResource(R.string.settings_firebase_web_client_id)) },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { if (!it.isFocused) viewModel.saveFirebaseSettings() }
+                        )
+                    }
+                }
+            }
+
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(stringResource(R.string.settings_cloud_backup_section), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.settings_cloud_backup_description))
 
                     if (!viewModel.isFirebaseConfigured) {
-                        Text(
-                            stringResource(R.string.settings_cloud_backup_firebase_not_configured),
-                            modifier = Modifier.padding(top = 16.dp)
-                        )
+                        Text(stringResource(R.string.settings_cloud_backup_firebase_not_configured))
                     } else if (viewModel.signedInEmail == null) {
                         // 未ログイン: まずGoogleサインインしてもらう（成功するとトグル表示に切り替わる）
-                        Text(
-                            stringResource(R.string.settings_sign_in_description),
-                            modifier = Modifier.padding(top = 16.dp)
-                        )
-                        Button(onClick = { viewModel.signIn() }, modifier = Modifier.padding(top = 8.dp)) {
+                        Text(stringResource(R.string.settings_sign_in_description))
+                        Button(onClick = { viewModel.signIn() }) {
                             Text(stringResource(R.string.settings_sign_in_button))
                         }
                     } else {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(top = 16.dp)
-                        ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Switch(checked = cloudBackupEnabled, onCheckedChange = { viewModel.setCloudBackupEnabled(it) })
                             Text(
                                 stringResource(R.string.settings_cloud_backup_toggle_label),
@@ -200,8 +246,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
 
                         Button(
                             onClick = { viewModel.restoreFromCloud() },
-                            enabled = viewModel.restoreState !is RestoreUiState.InProgress,
-                            modifier = Modifier.padding(top = 8.dp)
+                            enabled = viewModel.restoreState !is RestoreUiState.InProgress
                         ) {
                             // 初回(ローカルが空)は「復元」、2回目以降は「同期」として同じ処理を案内する
                             Text(
@@ -214,10 +259,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
 
                         when (val state = viewModel.restoreState) {
                             is RestoreUiState.InProgress -> {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(top = 8.dp)
-                                ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     CircularProgressIndicator(modifier = Modifier.size(16.dp))
                                     Text(
                                         when (val progress = state.progress) {
@@ -259,5 +301,22 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                 }
             }
         }
+    }
+}
+
+/** R2/Firebaseカードの折りたたみ見出し。タップで展開/収納をトグルする。 */
+@Composable
+private fun SectionHeader(title: String, expanded: Boolean, onToggle: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        Icon(
+            if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+            contentDescription = null
+        )
     }
 }

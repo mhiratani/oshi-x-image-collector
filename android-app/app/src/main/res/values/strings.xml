@@ -77,8 +77,6 @@
     <string name="settings_cloud_restore_downloading">画像をダウンロード中 (%1$d/%2$d)</string>
     <string name="settings_cloud_restore_success">復元完了: アカウント%1$d件、メタデータ%2$d件、画像%3$d件ダウンロード（失敗%4$d件）</string>
     <string name="settings_cloud_restore_failed">復元に失敗しました: %1$s</string>
-    <string name="settings_save">保存</string>
-    <string name="settings_saved">保存しました</string>
     <string name="settings_sign_in_failed">サインインに失敗しました: %1$s</string>
 
     <!-- Usage Screen -->
