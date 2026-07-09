@@ -1,5 +1,7 @@
 package com.hilamalu.oshixcollector.ui.navigation
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
@@ -64,12 +66,20 @@ fun OshiXImageCollectorNavGraph(navController: NavHostController = rememberNavCo
                     }
                 }
             }
-        }
+        },
+        // ステータスバー等のinsetは各画面が自前のScaffold/TopAppBarで処理する。
+        // ここで確保するとTopAppBar内部のinset処理と二重になり、
+        // ヘッダー上部にステータスバー分の無駄な余白が生まれる。
+        contentWindowInsets = WindowInsets(0)
     ) { innerPadding ->
         NavHost(
             navController = navController,
             startDestination = START_ROUTE,
-            modifier = Modifier.padding(innerPadding)
+            // ボトムナビ分として適用したpaddingはconsumedとして伝搬し、
+            // 内側のScaffoldが同じinsetを再度確保しないようにする。
+            modifier = Modifier
+                .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
         ) {
             composable(START_ROUTE) {
                 OnboardingScreen(
