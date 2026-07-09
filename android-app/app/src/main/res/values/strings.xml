@@ -30,7 +30,7 @@
     <string name="media_backfill">🕰 過去の投稿をさらに読み込む</string>
     <string name="media_backfill_running">🕰 X APIから過去の投稿を取得中…</string>
     <string name="media_backfill_all_done">これ以上遡れる過去の投稿はありません</string>
-    <string name="media_open_tweet">元ツイートを開く ↗</string>
+    <string name="media_open_tweet">𝕏↗</string>
     <string name="media_face_mark_true">🙂 顔画像として扱う、に変更</string>
     <string name="media_face_mark_false">🙅 顔画像ではない、に変更</string>
 

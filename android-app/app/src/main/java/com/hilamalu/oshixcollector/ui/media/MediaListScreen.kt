@@ -457,24 +457,23 @@ private fun LightboxContent(
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
-                Text(
-                    stringResource(R.string.media_open_tweet),
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier
-                        .padding(top = 8.dp)
-                        .clickable { uriHandler.openUri("https://x.com/i/web/status/${current.tweetId}") }
-                )
-                OutlinedButton(
-                    onClick = { onOverrideFace(current, current.isFace != true) },
-                    modifier = Modifier.padding(top = 4.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 8.dp)
                 ) {
-                    Text(
-                        stringResource(
-                            if (current.isFace == true) R.string.media_face_mark_false
-                            else R.string.media_face_mark_true
+                    OutlinedButton(onClick = { onOverrideFace(current, current.isFace != true) }) {
+                        Text(
+                            stringResource(
+                                if (current.isFace == true) R.string.media_face_mark_false
+                                else R.string.media_face_mark_true
+                            )
                         )
-                    )
+                    }
+                    OutlinedButton(
+                        onClick = { uriHandler.openUri("https://x.com/i/web/status/${current.tweetId}") }
+                    ) {
+                        Text(stringResource(R.string.media_open_tweet))
+                    }
                 }
             }
         }
