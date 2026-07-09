@@ -6,27 +6,25 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.History
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,7 +47,10 @@ import com.hilamalu.oshixcollector.data.db.TargetAccountEntity
 @Composable
 fun AccountsScreen(viewModel: AccountsViewModel = viewModel()) {
     val accounts by viewModel.accounts.collectAsState()
+    val mediaCounts by viewModel.mediaCountByUserId.collectAsState()
     var newScreenName by rememberSaveable { mutableStateOf("") }
+    // 削除確認ダイアログの対象（Web版のconfirm相当）
+    var deleteTarget by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(viewModel.errorMessage) {
@@ -95,41 +96,32 @@ fun AccountsScreen(viewModel: AccountsViewModel = viewModel()) {
                     Text(stringResource(R.string.accounts_empty))
                 }
             } else {
-                val hasBackfillTarget = accounts.any { it.xUserId != null && !it.backfillDone }
-                if (hasBackfillTarget) {
-                    OutlinedButton(
-                        onClick = { viewModel.backfillAll() },
-                        enabled = !viewModel.isBackfilling,
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
-                    ) {
-                        if (viewModel.isBackfilling) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                        } else {
-                            Icon(Icons.Filled.History, contentDescription = null)
-                        }
-                        Text(
-                            stringResource(R.string.accounts_backfill),
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
-                }
                 OutlinedCard(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                     LazyColumn(modifier = Modifier.fillMaxWidth()) {
                         items(accounts, key = TargetAccountEntity::screenName) { account ->
                             ListItem(
                                 headlineContent = { Text("@${account.screenName}") },
-                                supportingContent = if (account.xUserId != null) {
-                                    {
+                                supportingContent = {
+                                    Column {
+                                        // Web版アカウント一覧の 収集画像数 / X User ID / 最終取得ID に対応
                                         Text(
                                             stringResource(
-                                                if (account.backfillDone) R.string.accounts_backfill_done
-                                                else R.string.accounts_backfill_in_progress
+                                                R.string.accounts_media_count,
+                                                account.xUserId?.let { mediaCounts[it] } ?: 0
                                             )
                                         )
+                                        Text(
+                                            account.xUserId
+                                                ?.let { stringResource(R.string.accounts_user_id, it) }
+                                                ?: stringResource(R.string.accounts_user_id_unresolved)
+                                        )
+                                        account.lastFetchedId?.let {
+                                            Text(stringResource(R.string.accounts_last_fetched_id, it))
+                                        }
                                     }
-                                } else null,
+                                },
                                 trailingContent = {
-                                    IconButton(onClick = { viewModel.removeAccount(account.screenName) }) {
+                                    IconButton(onClick = { deleteTarget = account.screenName }) {
                                         Icon(
                                             Icons.Filled.Delete,
                                             contentDescription = stringResource(R.string.accounts_delete)
@@ -144,5 +136,25 @@ fun AccountsScreen(viewModel: AccountsViewModel = viewModel()) {
             }
 
         }
+    }
+
+    deleteTarget?.let { screenName ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            text = { Text(stringResource(R.string.accounts_delete_confirm, screenName)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.removeAccount(screenName)
+                    deleteTarget = null
+                }) {
+                    Text(stringResource(R.string.accounts_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            }
+        )
     }
 }

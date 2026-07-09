@@ -5,11 +5,23 @@ import android.util.Log
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import com.hilamalu.oshixcollector.data.db.MediaAssetEntity
 import com.hilamalu.oshixcollector.data.db.TargetAccountEntity
 import com.hilamalu.oshixcollector.data.settings.SecureSettings
 import kotlinx.coroutines.tasks.await
+
+/** `users/{uid}/apiUsageLog`の1ドキュメント分（Web版`api_usage_log`と同じ形）。 */
+data class ApiUsageEntry(
+    val calledAt: Long,
+    val purpose: String,
+    val endpoint: String,
+    val screenName: String?,
+    val resource: String,
+    val quantity: Int,
+    val costUsd: Double
+)
 
 /**
  * クラウドバックアップON時のみ使う、Room→Firestoreへの片方向ミラー書き込み。
@@ -160,6 +172,29 @@ class FirestoreMirror(
                 )
             ).await()
         }.onFailure { e -> Log.w(TAG, "logApiUsage failed: $purpose/$endpoint", e) }
+    }
+
+    /**
+     * API使用量画面用。Web版`/api/usage`と同じ`users/{uid}/apiUsageLog`を読むため、
+     * 同じGoogleアカウントならWeb/Android両方の呼び出しが合算されて見える。
+     * 未サインインの場合は例外を投げる（ユーザー起動アクションのため）。
+     */
+    suspend fun fetchApiUsageLog(): List<ApiUsageEntry> {
+        val userDoc = userDocOrNull() ?: error("Googleサインインが必要です")
+        return userDoc.collection("apiUsageLog")
+            .orderBy("called_at", Query.Direction.DESCENDING)
+            .get().await().documents.mapNotNull { doc ->
+                val calledAt = doc.getTimestamp("called_at")?.toDate()?.time ?: return@mapNotNull null
+                ApiUsageEntry(
+                    calledAt = calledAt,
+                    purpose = doc.getString("purpose") ?: "unknown",
+                    endpoint = doc.getString("endpoint") ?: "",
+                    screenName = doc.getString("screen_name"),
+                    resource = doc.getString("resource") ?: "",
+                    quantity = (doc.getLong("quantity") ?: 0L).toInt(),
+                    costUsd = doc.getDouble("cost_usd") ?: 0.0
+                )
+            }
     }
 
     private companion object {

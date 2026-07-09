@@ -3,6 +3,7 @@ package com.hilamalu.oshixcollector.ui.navigation
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -25,16 +26,19 @@ import com.hilamalu.oshixcollector.ui.accounts.AccountsScreen
 import com.hilamalu.oshixcollector.ui.media.MediaListScreen
 import com.hilamalu.oshixcollector.ui.onboarding.OnboardingScreen
 import com.hilamalu.oshixcollector.ui.settings.SettingsScreen
+import com.hilamalu.oshixcollector.ui.usage.UsageScreen
 
 private const val START_ROUTE = "start"
 
 private sealed class Destination(val route: String, val labelRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     data object Media : Destination("media", R.string.nav_media, Icons.Filled.Photo)
     data object Accounts : Destination("accounts", R.string.nav_accounts, Icons.Filled.AccountCircle)
+    data object Usage : Destination("usage", R.string.nav_usage, Icons.Filled.BarChart)
     data object Settings : Destination("settings", R.string.nav_settings, Icons.Filled.Settings)
 }
 
-private val bottomNavDestinations = listOf(Destination.Media, Destination.Accounts, Destination.Settings)
+private val bottomNavDestinations =
+    listOf(Destination.Media, Destination.Accounts, Destination.Usage, Destination.Settings)
 
 @Composable
 fun OshiXImageCollectorNavGraph(navController: NavHostController = rememberNavController()) {
@@ -83,6 +87,7 @@ fun OshiXImageCollectorNavGraph(navController: NavHostController = rememberNavCo
             }
             composable(Destination.Media.route) { MediaListScreen() }
             composable(Destination.Accounts.route) { AccountsScreen() }
+            composable(Destination.Usage.route) { UsageScreen() }
             composable(Destination.Settings.route) { SettingsScreen() }
         }
     }

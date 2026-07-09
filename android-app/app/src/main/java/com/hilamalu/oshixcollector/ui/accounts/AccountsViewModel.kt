@@ -10,6 +10,7 @@ import com.hilamalu.oshixcollector.data.MediaRepository
 import com.hilamalu.oshixcollector.data.db.TargetAccountEntity
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -19,10 +20,13 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
     val accounts: StateFlow<List<TargetAccountEntity>> = repository.accounts
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    var errorMessage by mutableStateOf<String?>(null)
-        private set
+    /** Web版アカウント一覧の「収集画像数」（media_count）相当: xUserId→枚数。 */
+    val mediaCountByUserId: StateFlow<Map<String, Int>> =
+        repository.media
+            .map { assets -> assets.groupingBy { it.xUserId }.eachCount() }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    var isBackfilling by mutableStateOf(false)
+    var errorMessage by mutableStateOf<String?>(null)
         private set
 
     fun addAccount(screenName: String) {
@@ -39,24 +43,7 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { repository.removeAccount(screenName) }
     }
 
-    /** 「過去の投稿を読み込む」ボタンから呼ぶ。全追跡アカウント（backfillDone==falseのもの）を対象に遡り取得する。 */
-    fun backfillAll() {
-        if (isBackfilling) return
-        viewModelScope.launch {
-            isBackfilling = true
-            try {
-                repository.backfillAll()
-            } catch (e: Exception) {
-                errorMessage = e.message
-            } finally {
-                isBackfilling = false
-            }
-        }
-    }
-
     fun dismissError() {
         errorMessage = null
     }
 }
-
-

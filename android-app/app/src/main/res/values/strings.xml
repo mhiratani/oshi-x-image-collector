@@ -4,6 +4,7 @@
     <!-- Navigation -->
     <string name="nav_media">画像</string>
     <string name="nav_accounts">アカウント</string>
+    <string name="nav_usage">使用量</string>
     <string name="nav_settings">設定</string>
 
     <!-- Onboarding Screen -->
@@ -21,8 +22,17 @@
     <string name="media_refresh">最新を取得</string>
     <string name="media_empty">画像がまだありません\nアカウントタブから追跡アカウントを追加してください</string>
     <string name="media_empty_face_only">顔が写っている画像がまだありません</string>
-    <string name="media_face_only_filter">顔のみ</string>
+    <string name="media_face_only_filter">🙂 顔のみ</string>
     <string name="media_sync">クラウドと同期</string>
+    <string name="media_filter_all">すべて</string>
+    <string name="media_all_shown">ストック済み %1$d 枚をすべて表示しました</string>
+    <string name="media_backfill">🕰 過去の投稿をさらに読み込む</string>
+    <string name="media_backfill_running">🕰 X APIから過去の投稿を取得中…</string>
+    <string name="media_backfill_multi_filter">複数アカウントを選択中は過去の投稿を読み込めません。1つに絞り込んでください。</string>
+    <string name="media_backfill_all_done">これ以上遡れる過去の投稿はありません</string>
+    <string name="media_open_tweet">元ツイートを開く ↗</string>
+    <string name="media_face_mark_true">🙂 顔画像として扱う、に変更</string>
+    <string name="media_face_mark_false">🙅 顔画像ではない、に変更</string>
 
 
     <!-- Accounts Screen -->
@@ -30,9 +40,11 @@
     <string name="accounts_add">追加</string>
     <string name="accounts_empty">追跡中のアカウントがありません</string>
     <string name="accounts_delete">削除</string>
-    <string name="accounts_backfill">過去の投稿を読み込む</string>
-    <string name="accounts_backfill_done">過去の投稿はすべて取得済みです</string>
-    <string name="accounts_backfill_in_progress">過去の投稿を一部未取得です</string>
+    <string name="accounts_delete_confirm">@%1$s と収集済み画像を削除しますか？</string>
+    <string name="accounts_media_count">収集画像数: %1$d</string>
+    <string name="accounts_user_id">X User ID: %1$s</string>
+    <string name="accounts_user_id_unresolved">X User ID: （未解決）「最新を取得」で解決されます</string>
+    <string name="accounts_last_fetched_id">最終取得ID: %1$s</string>
 
 
     <!-- Settings Screen -->
@@ -64,6 +76,31 @@
     <string name="settings_saved">保存しました</string>
     <string name="settings_sign_in_failed">サインインに失敗しました: %1$s</string>
 
+    <!-- Usage Screen -->
+    <string name="usage_reload">再読み込み</string>
+    <string name="usage_today">今日</string>
+    <string name="usage_month">今月</string>
+    <string name="usage_all_time">累計</string>
+    <string name="usage_month_calls">今月の呼び出し回数</string>
+    <string name="usage_month_quantity">今月の読み取り件数</string>
+    <string name="usage_note">X APIは従量課金（返却されたリソース件数 × 単価）です。ここでの金額は Posts: Read $0.005 / User: Read $0.010（読み取り1件あたり）を基にした概算で、X側の24時間重複排除は考慮していません。正確な請求額はDeveloper Console（https://console.x.com）を参照してください。</string>
+    <string name="usage_daily_title">直近30日の推移</string>
+    <string name="usage_daily_summary">今日: %1$d回（%2$s）　／　直近30日: %3$d回（%4$s）</string>
+    <string name="usage_daily_by_purpose_title">用途別 呼び出し回数（日次・直近30日）</string>
+    <string name="usage_monthly_by_purpose_title">用途別 呼び出し回数（月次・直近12ヶ月）</string>
+    <string name="usage_month_breakdown_title">今月の内訳</string>
+    <string name="usage_recent_title">呼び出し履歴（直近50件）</string>
+    <string name="usage_col_date">日付</string>
+    <string name="usage_col_month">月</string>
+    <string name="usage_col_total">合計</string>
+    <string name="usage_col_purpose">用途</string>
+    <string name="usage_col_calls">呼び出し回数</string>
+    <string name="usage_col_quantity">読み取り件数</string>
+    <string name="usage_col_cost">コスト</string>
+    <string name="usage_empty_month">今月はまだAPI呼び出しがありません</string>
+    <string name="usage_empty_recent">まだ記録がありません</string>
+
     <!-- Common -->
     <string name="common_delete">削除</string>
+    <string name="common_cancel">キャンセル</string>
 </resources>

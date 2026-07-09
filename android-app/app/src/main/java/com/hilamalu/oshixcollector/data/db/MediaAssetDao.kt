@@ -41,6 +41,16 @@ interface MediaAssetDao {
     @Query("UPDATE media_assets SET isFace = :isFace, faceConfidence = :faceConfidence WHERE mediaKey = :mediaKey")
     suspend fun updateFaceResult(mediaKey: String, isFace: Boolean, faceConfidence: Float)
 
+    /**
+     * 拡大表示からの顔判定の手動上書き（Web版 `PATCH /api/media/[mediaKey]` と同じ挙動）。
+     * `faceReviewed = true` にすることで以降の自動判定（再試行）の対象から外す。
+     */
+    @Query("UPDATE media_assets SET isFace = :isFace, faceReviewed = 1 WHERE mediaKey = :mediaKey")
+    suspend fun overrideFace(mediaKey: String, isFace: Boolean)
+
+    @Query("SELECT * FROM media_assets WHERE mediaKey = :mediaKey")
+    suspend fun getByMediaKey(mediaKey: String): MediaAssetEntity?
+
     @Query("DELETE FROM media_assets WHERE xUserId = :xUserId")
     suspend fun deleteByAccount(xUserId: String)
 

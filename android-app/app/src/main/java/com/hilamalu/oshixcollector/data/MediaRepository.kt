@@ -179,17 +179,19 @@ class MediaRepository(context: Context) {
     }
 
     /**
-     * 「過去の投稿を読み込む」ボタンから呼ぶ。`backfillDone == false`の全追跡アカウントについて、
+     * 「過去の投稿をさらに読み込む」ボタンから呼ぶ。`backfillDone == false`の追跡アカウントについて、
      * 過去方向（`until_id`）に遡って投稿を取得する（Web版`worker/batch.js`のbackfillAllAccounts移植）。
      * `backfillCursor`が空の場合はローカルDB内のそのアカウントの最古tweetIdを起点にする。
+     * [targetXUserId]を指定した場合はそのアカウントだけを対象にする（Web版の1件絞り込み中バックフィル相当）。
      */
-    suspend fun backfillAll(maxPagesPerAccount: Int = 5) {
+    suspend fun backfillAll(maxPagesPerAccount: Int = 5, targetXUserId: String? = null) {
         val client = xApiClient()
         val backupEnabled = cloudBackupSettings.isEnabled.first()
 
         for (account in targetAccountDao.getAll()) {
             val xUserId = account.xUserId
             if (xUserId == null || account.backfillDone) continue
+            if (targetXUserId != null && xUserId != targetXUserId) continue
 
             try {
                 val untilId = account.backfillCursor ?: mediaAssetDao.getOldestTweetId(xUserId)
@@ -279,6 +281,17 @@ class MediaRepository(context: Context) {
 
         if (backupEnabled && updated.isNotEmpty()) {
             firestoreMirror.mirrorMediaAssets(updated)
+        }
+    }
+
+    /**
+     * 拡大表示からの顔判定の手動上書き（Web版 `PATCH /api/media/[mediaKey]` の移植）。
+     * `faceReviewed = true` になり以降の自動判定対象から外れる。クラウドバックアップON時はFirestoreにもミラーする。
+     */
+    suspend fun overrideFace(mediaKey: String, isFace: Boolean) {
+        mediaAssetDao.overrideFace(mediaKey, isFace)
+        if (cloudBackupSettings.isEnabled.first()) {
+            mediaAssetDao.getByMediaKey(mediaKey)?.let { firestoreMirror.mirrorMediaAssets(listOf(it)) }
         }
     }
 
