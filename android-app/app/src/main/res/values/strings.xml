@@ -23,6 +23,7 @@
     <string name="media_empty">画像がまだありません\nアカウントタブから追跡アカウントを追加してください</string>
     <string name="media_empty_face_only">顔が写っている画像がまだありません</string>
     <string name="media_face_only_filter">🙂 顔のみ</string>
+    <string name="media_favorite_only_filter">❤️ お気に入り</string>
     <string name="media_face_detecting">顔判定中: %1$d件</string>
     <string name="media_filter_all">すべて</string>
     <string name="media_filter_by_account">ユーザーで絞り込み</string>
@@ -33,6 +34,7 @@
     <string name="media_open_tweet">𝕏↗</string>
     <string name="media_face_mark_true">🙂 顔画像として扱う、に変更</string>
     <string name="media_face_mark_false">🙅 顔画像ではない、に変更</string>
+    <string name="media_favorite_toggle">お気に入り</string>
 
 
     <!-- Accounts Screen -->

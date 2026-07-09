@@ -28,5 +28,7 @@ data class MediaAssetEntity(
     /** ML Kitは生の確率値を返さないため、検出結果を1f/0fの疑似スコアとして保持する（Web版のBlazeFace confidenceとは値の意味が異なる）。 */
     val faceConfidence: Float? = null,
     /** trueの場合、自動判定（再試行含む）の対象から外す。 */
-    val faceReviewed: Boolean = false
+    val faceReviewed: Boolean = false,
+    /** お気に入り登録。拡大表示から手動でON/OFFする。 */
+    val isFavorite: Boolean = false
 )

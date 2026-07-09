@@ -89,6 +89,7 @@ class FirestoreMirror(
                             "is_face" to asset.isFace,
                             "face_confidence" to asset.faceConfidence,
                             "face_reviewed" to asset.faceReviewed,
+                            "is_favorite" to asset.isFavorite,
                             // Android側にゲーティングUIは無く、保存した画像は常に一覧に出すため常にtrue固定
                             "revealed" to true
                         ),
@@ -138,7 +139,8 @@ class FirestoreMirror(
                 createdAt = doc.getTimestamp("created_at")?.toDate()?.time ?: 0L,
                 isFace = doc.getBoolean("is_face"),
                 faceConfidence = doc.getDouble("face_confidence")?.toFloat(),
-                faceReviewed = doc.getBoolean("face_reviewed") ?: false
+                faceReviewed = doc.getBoolean("face_reviewed") ?: false,
+                isFavorite = doc.getBoolean("is_favorite") ?: false
             )
         }
     }

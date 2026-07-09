@@ -60,15 +60,17 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private val googleAuthManager = GoogleAuthManager(application)
 
     private val faceOnly = MutableStateFlow(false)
+    private val favoritesOnly = MutableStateFlow(false)
 
     /** アカウント絞り込み（xUserId。null=すべて）。 */
     private val accountFilter = MutableStateFlow<String?>(null)
 
     val media: StateFlow<List<MediaAssetEntity>> =
-        combine(repository.media, faceOnly, accountFilter) { assets, faceOnlyEnabled, filter ->
+        combine(repository.media, faceOnly, favoritesOnly, accountFilter) { assets, faceOnlyEnabled, favoritesOnlyEnabled, filter ->
             assets
                 .let { if (filter == null) it else it.filter { a -> a.xUserId == filter } }
                 .let { if (faceOnlyEnabled) it.filter { a -> a.isFace == true } else it }
+                .let { if (favoritesOnlyEnabled) it.filter { a -> a.isFavorite } else it }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** 絞り込みチップ用: xUserId解決済みの追跡アカウントと収集枚数（Web版/api/accountsのmedia_count相当）。 */
@@ -100,6 +102,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         )
 
     val isFaceOnly: StateFlow<Boolean> = faceOnly
+    val isFavoritesOnly: StateFlow<Boolean> = favoritesOnly
     val selectedAccountId: StateFlow<String?> = accountFilter
 
     var isRefreshing by mutableStateOf(false)
@@ -224,6 +227,21 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setFaceOnly(enabled: Boolean) {
         faceOnly.value = enabled
+    }
+
+    fun setFavoritesOnly(enabled: Boolean) {
+        favoritesOnly.value = enabled
+    }
+
+    /** 拡大表示からのお気に入りON/OFF切り替え。 */
+    fun toggleFavorite(mediaKey: String, isFavorite: Boolean) {
+        viewModelScope.launch {
+            try {
+                repository.setFavorite(mediaKey, isFavorite)
+            } catch (e: Exception) {
+                errorMessage = e.message
+            }
+        }
     }
 
     /** ユーザー絞り込みシートでの選択。nullで「すべて」に戻す。 */

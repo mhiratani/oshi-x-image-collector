@@ -24,6 +24,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
@@ -82,6 +84,7 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
     val screenNames by viewModel.screenNameByUserId.collectAsState()
     val backfillState by viewModel.backfillState.collectAsState()
     val isFaceOnly by viewModel.isFaceOnly.collectAsState()
+    val isFavoritesOnly by viewModel.isFavoritesOnly.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
     // 拡大表示中の画像（Web版のselected。mediaKeyで持つことでリスト更新時のずれを防ぐ）
@@ -116,6 +119,11 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
                             selected = isFaceOnly,
                             onClick = { viewModel.setFaceOnly(!isFaceOnly) },
                             label = { Text(stringResource(R.string.media_face_only_filter)) }
+                        )
+                        FilterChip(
+                            selected = isFavoritesOnly,
+                            onClick = { viewModel.setFavoritesOnly(!isFavoritesOnly) },
+                            label = { Text(stringResource(R.string.media_favorite_only_filter)) }
                         )
                         if (viewModel.faceDetectionRemaining > 0) {
                             Text(
@@ -205,6 +213,7 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
             screenNames = screenNames,
             onPageChanged = { asset -> selectedKey = asset.mediaKey },
             onOverrideFace = { asset, isFace -> viewModel.overrideFace(asset.mediaKey, isFace) },
+            onToggleFavorite = { asset, isFavorite -> viewModel.toggleFavorite(asset.mediaKey, isFavorite) },
             onClose = { selectedKey = null }
         )
     }
@@ -370,6 +379,7 @@ private fun MediaLightbox(
     screenNames: Map<String, String>,
     onPageChanged: (MediaAssetEntity) -> Unit,
     onOverrideFace: (MediaAssetEntity, Boolean) -> Unit,
+    onToggleFavorite: (MediaAssetEntity, Boolean) -> Unit,
     onClose: () -> Unit
 ) {
     val uriHandler = LocalUriHandler.current
@@ -391,6 +401,7 @@ private fun MediaLightbox(
             screenNames = screenNames,
             uriHandler = uriHandler,
             onOverrideFace = onOverrideFace,
+            onToggleFavorite = onToggleFavorite,
             onClose = onClose
         )
     }
@@ -403,6 +414,7 @@ private fun LightboxContent(
     screenNames: Map<String, String>,
     uriHandler: androidx.compose.ui.platform.UriHandler,
     onOverrideFace: (MediaAssetEntity, Boolean) -> Unit,
+    onToggleFavorite: (MediaAssetEntity, Boolean) -> Unit,
     onClose: () -> Unit
 ) {
     Box(
@@ -458,6 +470,7 @@ private fun LightboxContent(
                     )
                 }
                 Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(top = 8.dp)
                 ) {
@@ -473,6 +486,13 @@ private fun LightboxContent(
                         onClick = { uriHandler.openUri("https://x.com/i/web/status/${current.tweetId}") }
                     ) {
                         Text(stringResource(R.string.media_open_tweet))
+                    }
+                    IconButton(onClick = { onToggleFavorite(current, !current.isFavorite) }) {
+                        Icon(
+                            if (current.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            contentDescription = stringResource(R.string.media_favorite_toggle),
+                            tint = if (current.isFavorite) Color(0xFFE91E63) else Color.White
+                        )
                     }
                 }
             }

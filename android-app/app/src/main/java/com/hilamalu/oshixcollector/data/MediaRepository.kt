@@ -316,6 +316,14 @@ class MediaRepository(context: Context) {
         }
     }
 
+    /** 拡大表示からのお気に入りON/OFF切り替え。クラウドバックアップON時はFirestoreにもミラーする。 */
+    suspend fun setFavorite(mediaKey: String, isFavorite: Boolean) {
+        mediaAssetDao.setFavorite(mediaKey, isFavorite)
+        if (cloudBackupSettings.isEnabled.first()) {
+            mediaAssetDao.getByMediaKey(mediaKey)?.let { firestoreMirror.mirrorMediaAssets(listOf(it)) }
+        }
+    }
+
     /**
      * クラウドバックアップを新たにONにした直後に呼ぶ。OFFだった間にローカルへ
      * 溜まっていた未バックアップ分をまとめてFirestore/R2へミラーする。
@@ -384,7 +392,8 @@ class MediaRepository(context: Context) {
                     r2BackupUrl = asset.r2BackupUrl,
                     isFace = asset.isFace,
                     faceConfidence = asset.faceConfidence,
-                    faceReviewed = asset.faceReviewed
+                    faceReviewed = asset.faceReviewed,
+                    isFavorite = asset.isFavorite
                 )
             }
         }

@@ -48,6 +48,10 @@ interface MediaAssetDao {
     @Query("UPDATE media_assets SET isFace = :isFace, faceReviewed = 1 WHERE mediaKey = :mediaKey")
     suspend fun overrideFace(mediaKey: String, isFace: Boolean)
 
+    /** 拡大表示からのお気に入りON/OFF切り替え。 */
+    @Query("UPDATE media_assets SET isFavorite = :isFavorite WHERE mediaKey = :mediaKey")
+    suspend fun setFavorite(mediaKey: String, isFavorite: Boolean)
+
     @Query("SELECT * FROM media_assets WHERE mediaKey = :mediaKey")
     suspend fun getByMediaKey(mediaKey: String): MediaAssetEntity?
 
@@ -65,7 +69,8 @@ interface MediaAssetDao {
             r2BackupUrl = :r2BackupUrl,
             isFace = :isFace,
             faceConfidence = :faceConfidence,
-            faceReviewed = :faceReviewed
+            faceReviewed = :faceReviewed,
+            isFavorite = :isFavorite
         WHERE mediaKey = :mediaKey
         """
     )
@@ -74,7 +79,8 @@ interface MediaAssetDao {
         r2BackupUrl: String?,
         isFace: Boolean?,
         faceConfidence: Float?,
-        faceReviewed: Boolean
+        faceReviewed: Boolean,
+        isFavorite: Boolean
     )
 
     @Query("SELECT mediaKey FROM media_assets WHERE mediaKey IN (:mediaKeys)")
