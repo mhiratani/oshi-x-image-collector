@@ -103,6 +103,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val isFaceOnly: StateFlow<Boolean> = faceOnly
     val selectedAccountIds: StateFlow<Set<String>> = accountFilter
 
+    /** トップバーの同期アイコンの表示条件。クラウドバックアップ無効時はアイコン自体を出さない。 */
+    val isCloudBackupEnabled: StateFlow<Boolean> =
+        cloudBackupSettings.isEnabled
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     var isRefreshing by mutableStateOf(false)
         private set
 

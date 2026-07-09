@@ -74,6 +74,7 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
     val screenNames by viewModel.screenNameByUserId.collectAsState()
     val backfillState by viewModel.backfillState.collectAsState()
     val isFaceOnly by viewModel.isFaceOnly.collectAsState()
+    val isCloudBackupEnabled by viewModel.isCloudBackupEnabled.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
     // 拡大表示中の画像（Web版のselected。mediaKeyで持つことでリスト更新時のずれを防ぐ）
@@ -110,11 +111,13 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.syncFromCloud() }, enabled = !viewModel.isSyncing) {
-                        if (viewModel.isSyncing) {
-                            CircularProgressIndicator(modifier = Modifier.padding(4.dp))
-                        } else {
-                            Icon(Icons.Filled.Sync, contentDescription = stringResource(R.string.media_sync))
+                    if (isCloudBackupEnabled) {
+                        IconButton(onClick = { viewModel.syncFromCloud() }, enabled = !viewModel.isSyncing) {
+                            if (viewModel.isSyncing) {
+                                CircularProgressIndicator(modifier = Modifier.padding(4.dp))
+                            } else {
+                                Icon(Icons.Filled.Sync, contentDescription = stringResource(R.string.media_sync))
+                            }
                         }
                     }
                 }
