@@ -3,14 +3,18 @@
   Backup / transfer rules (Android 12+).
   収集した画像(files/media/)とSQLite DBはアプリ独自のクラウドバックアップ機能(Firestore/R2)で
   管理するため、Android標準のAuto Backup/デバイス移行の対象からは除外する。
+  secure_settings(EncryptedSharedPreferences)はマスターキーがKeystore内にあり端末外へ出ないため、
+  移行先の端末では復号できず初回起動クラッシュの原因になる。移行しても使えないので除外する。
 -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="database" />
         <exclude domain="file" path="media/" />
+        <exclude domain="sharedpref" path="secure_settings.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="database" />
         <exclude domain="file" path="media/" />
+        <exclude domain="sharedpref" path="secure_settings.xml" />
     </device-transfer>
 </data-extraction-rules>

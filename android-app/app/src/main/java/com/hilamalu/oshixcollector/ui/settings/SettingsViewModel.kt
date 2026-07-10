@@ -70,6 +70,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     var restoreState by mutableStateOf<RestoreUiState>(RestoreUiState.Idle)
         private set
 
+    /**
+     * FirebaseAppProviderが現在参照している（＝前回[applyFirebaseConfigIfChanged]を通過した）
+     * Firebase構成のスナップショット。保存済みの値と比べて再初期化の要否を判定する。
+     */
+    private var appliedFirebaseConfig = storedFirebaseConfig()
+
+    private fun storedFirebaseConfig() = listOf(
+        secureSettings.firebaseApiKey,
+        secureSettings.firebaseProjectId,
+        secureSettings.firebaseAppId,
+        secureSettings.firebaseWebClientId
+    )
+
     /** Bearer Token欄からフォーカスが外れた時に呼ぶ（保存ボタンは無く、入力のたびに自動保存する）。 */
     fun saveXBearerToken() {
         secureSettings.xBearerToken = xBearerToken.ifBlank { null }
@@ -84,30 +97,48 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         secureSettings.r2Endpoint = r2Endpoint.ifBlank { null }
     }
 
-    /** Firebase欄のいずれかからフォーカスが外れた時に呼ぶ（4項目まとめて自動保存）。 */
+    /**
+     * Firebase欄のいずれかからフォーカスが外れた時に呼ぶ（4項目まとめて自動保存）。
+     * 1項目ずつの自動保存中に入力途中の構成でサインアウトが走らないよう、ここでは保存のみ行い、
+     * サインアウト＋再初期化のカスケードは[applyFirebaseConfigIfChanged]まで遅延する。
+     */
     fun saveFirebaseSettings() {
-        val firebaseConfigChanged = secureSettings.firebaseApiKey != firebaseApiKey.ifBlank { null } ||
-            secureSettings.firebaseProjectId != firebaseProjectId.ifBlank { null } ||
-            secureSettings.firebaseAppId != firebaseAppId.ifBlank { null } ||
-            secureSettings.firebaseWebClientId != firebaseWebClientId.ifBlank { null }
-        if (firebaseConfigChanged) {
-            // Firebase(Google)の情報が変わったら既存のサインインは無効なので、
-            // サインアウトして「ログインする」ボタンからやり直してもらう。
-            // サインアウトは旧FirebaseAppに対して行う必要があるため、値の上書き・リセットより先に実行する。
-            googleAuthManager.signOut()
-            signedInEmail = null
-            viewModelScope.launch { cloudBackupSettings.setEnabled(false) }
-        }
         secureSettings.firebaseApiKey = firebaseApiKey.ifBlank { null }
         secureSettings.firebaseProjectId = firebaseProjectId.ifBlank { null }
         secureSettings.firebaseAppId = firebaseAppId.ifBlank { null }
         secureSettings.firebaseWebClientId = firebaseWebClientId.ifBlank { null }
-        if (firebaseConfigChanged) {
-            // 既存の初期化済みFirebaseAppは古い値を保持し続けるため、次回アクセス時に
-            // 新しい値で再初期化されるようリセットする。
-            FirebaseAppProvider.reset(getApplication<Application>())
-        }
         isFirebaseConfigured = secureSettings.isFirebaseConfigured
+    }
+
+    /**
+     * 保存済みのFirebase構成が前回適用時から変わっていたら、旧サインインを破棄して再初期化する。
+     * 「編集が一段落した」タイミング（セクションを折りたたむ・画面を離れる・サインイン直前）で呼ぶ。
+     */
+    fun applyFirebaseConfigIfChanged() {
+        val stored = storedFirebaseConfig()
+        if (stored == appliedFirebaseConfig) return
+        // Firebase(Google)の情報が変わったら既存のサインインは無効なので、
+        // サインアウトして「ログインする」ボタンからやり直してもらう。
+        // FirebaseAppProviderはまだ旧構成で初期化されたインスタンスを保持しているため、
+        // サインアウト（旧FirebaseAppに対して行う必要がある）→リセットの順で実行する。
+        googleAuthManager.signOut()
+        signedInEmail = null
+        viewModelScope.launch { cloudBackupSettings.setEnabled(false) }
+        // 既存の初期化済みFirebaseAppは古い値を保持し続けるため、次回アクセス時に
+        // 新しい値で再初期化されるようリセットする。
+        FirebaseAppProvider.reset(getApplication<Application>())
+        appliedFirebaseConfig = stored
+    }
+
+    /**
+     * 全セクションの一括保存。フォーカス移動イベントを経ずに画面を離れた場合
+     * （ON_PAUSE・画面破棄・サインインボタン押下）の保存漏れを防ぐ。
+     */
+    fun saveAll() {
+        saveXBearerToken()
+        saveR2Settings()
+        saveFirebaseSettings()
+        applyFirebaseConfigIfChanged()
     }
 
     fun dismissError() {
@@ -116,6 +147,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     /** 「ログインする」ボタンから呼ぶ。成功するとトグル表示に切り替わる。 */
     fun signIn() {
+        // 入力欄にフォーカスが残ったままボタンを押した場合も、最新の入力値でサインインする
+        saveAll()
         viewModelScope.launch {
             try {
                 signedInEmail = googleAuthManager.signIn().email

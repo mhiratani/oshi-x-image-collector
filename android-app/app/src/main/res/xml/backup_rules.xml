@@ -3,8 +3,11 @@
   Auto Backup rules (Android 11 and below).
   収集した画像(files/media/)とSQLite DBはアプリ独自のクラウドバックアップ機能(Firestore/R2)で
   管理するため、Android標準のAuto Backupの対象からは除外する。
+  secure_settings(EncryptedSharedPreferences)はマスターキーがKeystore内にあり端末外へ出ないため、
+  復元先の端末では復号できず初回起動クラッシュの原因になる。復元しても使えないので除外する。
 -->
 <full-backup-content>
     <exclude domain="database" />
     <exclude domain="file" path="media/" />
+    <exclude domain="sharedpref" path="secure_settings.xml" />
 </full-backup-content>

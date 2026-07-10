@@ -14,6 +14,7 @@ import com.hilamalu.oshixcollector.data.settings.SecureSettings
 import com.hilamalu.oshixcollector.data.xapi.XApiClient
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 
 /**
  * X取得→Room保存→（バックアップON時のみ）Firestore/R2ミラー、を一連でまとめるリポジトリ。
@@ -279,25 +281,31 @@ class MediaRepository(context: Context) {
      * 画像をまとめて顔判定する。「最新を取得」「過去の投稿を読み込む」の完了後に呼ぶ想定
      * （クラウドバックアップ完了を顔判定の完了で待たせないよう、あえて別枠の呼び出しにしている）。
      * クラウドバックアップの有無に関わらず常に実行する（顔判定はローカル機能のため）。
+     * [onProgress]には残り件数を通知する（開始直後に全件数、以降1枚処理するごとに減少）。
      */
-    suspend fun detectPendingFaces(onProgress: (completed: Int, total: Int) -> Unit = { _, _ -> }) {
+    suspend fun detectPendingFaces(onProgress: (remaining: Int) -> Unit = {}) {
         val pending = mediaAssetDao.getPendingFaceDetection()
         if (pending.isEmpty()) return
         val backupEnabled = cloudBackupSettings.isEnabled.first()
+        onProgress(pending.size)
 
-        val updated = mutableListOf<MediaAssetEntity>()
-        pending.forEachIndexed { index, asset ->
-            val localPath = asset.localImagePath
-            if (localPath != null) {
-                when (val result = FaceDetector.detect(File(localPath))) {
-                    is FaceDetector.Result.Detected -> {
-                        mediaAssetDao.updateFaceResult(asset.mediaKey, result.isFace, result.confidence)
-                        updated += asset.copy(isFace = result.isFace, faceConfidence = result.confidence)
+        // ビットマップのデコードが呼び出し元スレッドで走るため、メインスレッドを塞がないようDefaultへ逃がす
+        val updated = withContext(Dispatchers.Default) {
+            val results = mutableListOf<MediaAssetEntity>()
+            pending.forEachIndexed { index, asset ->
+                val localPath = asset.localImagePath
+                if (localPath != null) {
+                    when (val result = FaceDetector.detect(File(localPath))) {
+                        is FaceDetector.Result.Detected -> {
+                            mediaAssetDao.updateFaceResult(asset.mediaKey, result.isFace, result.confidence)
+                            results += asset.copy(isFace = result.isFace, faceConfidence = result.confidence)
+                        }
+                        FaceDetector.Result.Unavailable -> Unit // 次回に再試行
                     }
-                    FaceDetector.Result.Unavailable -> Unit // 次回に再試行
                 }
+                onProgress(pending.size - index - 1)
             }
-            onProgress(index + 1, pending.size)
+            results
         }
 
         if (backupEnabled && updated.isNotEmpty()) {
@@ -333,10 +341,12 @@ class MediaRepository(context: Context) {
         for (account in targetAccountDao.getAll()) {
             firestoreMirror.mirrorTargetAccount(account)
         }
-        val pending = mediaAssetDao.getPendingBackup()
-        if (pending.isEmpty()) return
-        firestoreMirror.mirrorMediaAssets(pending)
-        backupImages(pending)
+        // OFFの間に付いたお気に入り・顔判定上書きはバックアップ済み（r2BackupUrlあり）の行にも
+        // 乗るため、メタデータは全件ミラーして取りこぼしを防ぐ（画像の転送は未バックアップ分のみ）
+        val all = mediaAssetDao.observeAll().first()
+        if (all.isEmpty()) return
+        firestoreMirror.mirrorMediaAssets(all)
+        backupImages(mediaAssetDao.getPendingBackup())
     }
 
     /** バックアップ未実施（`r2BackupUrl == null`）の画像をR2へアップロードする。 */

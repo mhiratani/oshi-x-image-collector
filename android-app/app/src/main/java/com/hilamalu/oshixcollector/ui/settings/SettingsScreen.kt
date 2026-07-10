@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -28,6 +27,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -41,6 +41,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hilamalu.oshixcollector.R
 import com.hilamalu.oshixcollector.data.MediaRepository
@@ -61,6 +64,20 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
         viewModel.errorMessage?.let { message ->
             snackbarHostState.showSnackbar(context.getString(R.string.settings_sign_in_failed, message))
             viewModel.dismissError()
+        }
+    }
+
+    // 自動保存はフォーカスが外れた時にしか走らないため、入力欄にフォーカスが残ったまま
+    // 画面を離れた（タブ切り替え）・アプリがバックグラウンドに回った場合の保存漏れをここで防ぐ
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE) viewModel.saveAll()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            viewModel.saveAll()
         }
     }
 
@@ -110,7 +127,11 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                     SectionHeader(
                         title = stringResource(R.string.settings_r2_section),
                         expanded = r2Expanded,
-                        onToggle = { r2Expanded = !r2Expanded }
+                        onToggle = {
+                            r2Expanded = !r2Expanded
+                            // 折りたたむ時はフォーカスイベントを経ずに入力欄が破棄されうるため、ここでも保存する
+                            if (!r2Expanded) viewModel.saveR2Settings()
+                        }
                     )
                     if (r2Expanded) {
                         OutlinedTextField(
@@ -171,7 +192,14 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                     SectionHeader(
                         title = stringResource(R.string.settings_firebase_section),
                         expanded = firebaseExpanded,
-                        onToggle = { firebaseExpanded = !firebaseExpanded }
+                        onToggle = {
+                            firebaseExpanded = !firebaseExpanded
+                            // 折りたたみ＝編集の一段落とみなし、保存に加えてサインアウトカスケードもここで適用する
+                            if (!firebaseExpanded) {
+                                viewModel.saveFirebaseSettings()
+                                viewModel.applyFirebaseConfigIfChanged()
+                            }
+                        }
                     )
                     if (firebaseExpanded) {
                         Text(stringResource(R.string.settings_firebase_description))

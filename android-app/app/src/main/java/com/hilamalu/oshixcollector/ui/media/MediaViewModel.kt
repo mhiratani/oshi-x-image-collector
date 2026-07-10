@@ -10,6 +10,7 @@ import com.hilamalu.oshixcollector.data.MediaRepository
 import com.hilamalu.oshixcollector.data.backup.CloudBackupSettings
 import com.hilamalu.oshixcollector.data.backup.GoogleAuthManager
 import com.hilamalu.oshixcollector.data.db.MediaAssetEntity
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -115,13 +116,20 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     var faceDetectionRemaining by mutableStateOf(0)
         private set
 
-    private var isDetectingFaces = false
+    private var faceDetectionJob: Job? = null
+    private var faceDetectionRerunRequested = false
 
     var errorMessage by mutableStateOf<String?>(null)
         private set
 
     var syncMessage by mutableStateOf<String?>(null)
         private set
+
+    init {
+        // 前回の顔判定が途中で中断された（画面を離れてviewModelScopeごとキャンセルされた等）
+        // 未判定画像が残っていても、次の同期を待たずに処理できるよう起動時にも一度実行する
+        runFaceDetection()
+    }
 
     /**
      * 「最新を取得」。クラウドバックアップ有効かつサインイン済みなら、先にクラウドの
@@ -196,21 +204,24 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** 未判定画像の顔判定をまとめて行う。多重起動はガードする。 */
+    /** 未判定画像の顔判定をまとめて行う。実行中に再度呼ばれた場合は、完了後にもう一度実行する。 */
     private fun runFaceDetection() {
-        if (isDetectingFaces) return
-        isDetectingFaces = true
-        viewModelScope.launch {
-            try {
-                repository.detectPendingFaces { completed, total ->
-                    faceDetectionRemaining = total - completed
+        if (faceDetectionJob?.isActive == true) {
+            // 実行中の判定は開始時点の未判定リストしか見ないため、後から増えた分を取りこぼさないよう再実行を予約する
+            faceDetectionRerunRequested = true
+            return
+        }
+        faceDetectionJob = viewModelScope.launch {
+            do {
+                faceDetectionRerunRequested = false
+                try {
+                    repository.detectPendingFaces { remaining -> faceDetectionRemaining = remaining }
+                } catch (e: Exception) {
+                    errorMessage = e.message?.let(::friendlyApiError)
+                } finally {
+                    faceDetectionRemaining = 0
                 }
-            } catch (e: Exception) {
-                errorMessage = e.message?.let(::friendlyApiError)
-            } finally {
-                faceDetectionRemaining = 0
-                isDetectingFaces = false
-            }
+            } while (faceDetectionRerunRequested)
         }
     }
 
