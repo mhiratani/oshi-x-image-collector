@@ -15,6 +15,7 @@ import com.hilamalu.oshixcollector.data.xapi.PhotoMedia
 import com.hilamalu.oshixcollector.data.xapi.XApiClient
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -281,45 +282,62 @@ class MediaRepository(context: Context) {
         onProgress(pending.size)
 
         // ビットマップのデコードが呼び出し元スレッドで走るため、メインスレッドを塞がないようDefaultへ逃がす
-        val updated = withContext(Dispatchers.Default) {
-            val results = mutableListOf<MediaAssetEntity>()
+        withContext(Dispatchers.Default) {
             pending.forEachIndexed { index, asset ->
                 val localPath = asset.localImagePath
                 if (localPath != null) {
                     when (val result = FaceDetector.detect(File(localPath))) {
                         is FaceDetector.Result.Detected -> {
                             mediaAssetDao.updateFaceResult(asset.mediaKey, result.isFace, result.confidence)
-                            results += asset.copy(isFace = result.isFace, faceConfidence = result.confidence)
+                            // 判定できたものからその場でクラウドへ反映する（最後にまとめて書くと、
+                            // 途中中断時にローカルとクラウドがずれて次回同期で巻き戻るため）。
+                            // ミラー失敗はログのみ: 巻き戻っても未判定に戻るだけで、次回の判定で自己回復する
+                            if (backupEnabled) {
+                                firestoreMirror.mirrorMediaAssets(
+                                    listOf(asset.copy(isFace = result.isFace, faceConfidence = result.confidence))
+                                )
+                            }
                         }
                         FaceDetector.Result.Unavailable -> Unit // 次回に再試行
                     }
                 }
                 onProgress(pending.size - index - 1)
             }
-            results
-        }
-
-        if (backupEnabled && updated.isNotEmpty()) {
-            firestoreMirror.mirrorMediaAssets(updated)
         }
     }
 
     /**
      * 拡大表示からの顔判定の手動上書き（Web版 `PATCH /api/media/[mediaKey]` の移植）。
-     * `faceReviewed = true` になり以降の自動判定対象から外れる。クラウドバックアップON時はFirestoreにもミラーする。
+     * `faceReviewed = true` になり以降の自動判定対象から外れる。クラウドバックアップON時は
+     * その場でFirestoreへ反映し、失敗は例外で呼び出し元へ伝える。
      */
     suspend fun overrideFace(mediaKey: String, isFace: Boolean) {
         mediaAssetDao.overrideFace(mediaKey, isFace)
-        if (cloudBackupSettings.isEnabled.first()) {
-            mediaAssetDao.getByMediaKey(mediaKey)?.let { firestoreMirror.mirrorMediaAssets(listOf(it)) }
-        }
+        mirrorUserEditOrThrow(mediaKey)
     }
 
-    /** 拡大表示からのお気に入りON/OFF切り替え。クラウドバックアップON時はFirestoreにもミラーする。 */
+    /**
+     * 拡大表示からのお気に入りON/OFF切り替え。クラウドバックアップON時は
+     * その場でFirestoreへ反映し、失敗は例外で呼び出し元へ伝える。
+     */
     suspend fun setFavorite(mediaKey: String, isFavorite: Boolean) {
         mediaAssetDao.setFavorite(mediaKey, isFavorite)
-        if (cloudBackupSettings.isEnabled.first()) {
-            mediaAssetDao.getByMediaKey(mediaKey)?.let { firestoreMirror.mirrorMediaAssets(listOf(it)) }
+        mirrorUserEditOrThrow(mediaKey)
+    }
+
+    /**
+     * ユーザー操作による1件変更のクラウド反映。失敗を握りつぶすとローカルだけ変わったままになり
+     * 次回同期でクラウド値に巻き戻ってしまうため、例外で通知して再操作を促す（ローカルの変更自体は残す）。
+     */
+    private suspend fun mirrorUserEditOrThrow(mediaKey: String) {
+        if (!cloudBackupSettings.isEnabled.first()) return
+        val asset = mediaAssetDao.getByMediaKey(mediaKey) ?: return
+        try {
+            firestoreMirror.mirrorMediaAssetOrThrow(asset)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw IllegalStateException("クラウドへの反映に失敗しました。通信環境を確認してもう一度お試しください（${e.message}）", e)
         }
     }
 

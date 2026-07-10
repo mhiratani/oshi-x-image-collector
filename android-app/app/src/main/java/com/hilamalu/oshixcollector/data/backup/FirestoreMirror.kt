@@ -27,6 +27,7 @@ data class ApiUsageEntry(
  * クラウドバックアップON時のみ使う、Room→Firestoreへの片方向ミラー書き込み。
  * design.md 3.1.2の通り、失敗してもローカルの動作には一切影響させない
  * （呼び出し元はfire-and-forgetで呼び、例外はここで握りつぶしてログのみ残す）。
+ * 例外は[mirrorMediaAssetOrThrow]のみ: ユーザー操作1件分の反映は失敗を通知して再操作を促す。
  *
  * コレクション構成: users/{uid}/targetAccounts/{screenName}, users/{uid}/mediaAssets/{mediaKey}
  * （コレクション名はAndroid側の元々の命名、フィールド名はWeb側のsnake_case規約に統一）。
@@ -74,31 +75,41 @@ class FirestoreMirror(
             userDoc.firestore.runBatch { batch ->
                 val collection = userDoc.collection("mediaAssets")
                 for (asset in assets) {
-                    batch.set(
-                        collection.document(asset.mediaKey),
-                        mapOf(
-                            "media_key" to asset.mediaKey,
-                            "tweet_id" to asset.tweetId,
-                            "x_user_id" to asset.xUserId,
-                            "x_cdn_url" to asset.xCdnUrl,
-                            "r2_backup_url" to asset.r2BackupUrl,
-                            "backed_up" to (asset.r2BackupUrl != null),
-                            "backup_attempts" to asset.backupAttempts,
-                            "posted_at" to Timestamp(asset.postedAt / 1000, 0),
-                            "created_at" to Timestamp(asset.createdAt / 1000, 0),
-                            "is_face" to asset.isFace,
-                            "face_confidence" to asset.faceConfidence,
-                            "face_reviewed" to asset.faceReviewed,
-                            "is_favorite" to asset.isFavorite,
-                            // Android側にゲーティングUIは無く、保存した画像は常に一覧に出すため常にtrue固定
-                            "revealed" to true
-                        ),
-                        SetOptions.merge()
-                    )
+                    batch.set(collection.document(asset.mediaKey), assetDocFields(asset), SetOptions.merge())
                 }
             }.await()
         }.onFailure { e -> Log.w(TAG, "mirrorMediaAssets failed (${assets.size} items)", e) }
     }
+
+    /**
+     * ユーザー操作1件分（お気に入り・顔判定の手動上書き）のミラー。バッチ系と違い失敗を
+     * 握りつぶさず例外を投げる。失敗を無視するとローカルだけ変わったままになり、次回同期で
+     * クラウド値に巻き戻ってしまうため、呼び出し元がエラー表示して再操作を促す。
+     */
+    suspend fun mirrorMediaAssetOrThrow(asset: MediaAssetEntity) {
+        val userDoc = userDocOrNull() ?: error("Googleサインインが必要です")
+        userDoc.collection("mediaAssets").document(asset.mediaKey)
+            .set(assetDocFields(asset), SetOptions.merge())
+            .await()
+    }
+
+    private fun assetDocFields(asset: MediaAssetEntity): Map<String, Any?> = mapOf(
+        "media_key" to asset.mediaKey,
+        "tweet_id" to asset.tweetId,
+        "x_user_id" to asset.xUserId,
+        "x_cdn_url" to asset.xCdnUrl,
+        "r2_backup_url" to asset.r2BackupUrl,
+        "backed_up" to (asset.r2BackupUrl != null),
+        "backup_attempts" to asset.backupAttempts,
+        "posted_at" to Timestamp(asset.postedAt / 1000, 0),
+        "created_at" to Timestamp(asset.createdAt / 1000, 0),
+        "is_face" to asset.isFace,
+        "face_confidence" to asset.faceConfidence,
+        "face_reviewed" to asset.faceReviewed,
+        "is_favorite" to asset.isFavorite,
+        // Android側にゲーティングUIは無く、保存した画像は常に一覧に出すため常にtrue固定
+        "revealed" to true
+    )
 
     /** クラウドバックアップからの復元用。未サインインの場合は例外を投げる（ユーザー起動アクションのため）。 */
     suspend fun fetchTargetAccounts(): List<TargetAccountEntity> {
