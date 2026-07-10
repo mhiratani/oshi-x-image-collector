@@ -247,35 +247,31 @@ export default function GalleryPage() {
   const lastError = collectStatus.lastError ?? backfill.lastError;
   const busy = backfilling || backfill.running || collecting || collectStatus.running || revealing;
 
-  // 顔フィルターの手動上書き（拡大表示から）
-  const toggleFace = async (item: MediaItem, isFace: boolean) => {
+  // PATCH /api/media/:mediaKey を叩き、成功したら一覧と拡大表示の両方のstateへ反映する
+  const patchMedia = async (
+    item: MediaItem,
+    body: { isFace?: boolean; isFavorite?: boolean },
+    patch: Partial<MediaItem>
+  ) => {
     const res = await fetch(`/api/media/${item.media_key}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isFace }),
+      body: JSON.stringify(body),
     }).catch(() => null);
     if (!res || !res.ok) return;
     setItems((prev) =>
-      prev.map((i) => (i.media_key === item.media_key ? { ...i, is_face: isFace } : i))
+      prev.map((i) => (i.media_key === item.media_key ? { ...i, ...patch } : i))
     );
-    setSelected((prev) => (prev && prev.media_key === item.media_key ? { ...prev, is_face: isFace } : prev));
+    setSelected((prev) => (prev && prev.media_key === item.media_key ? { ...prev, ...patch } : prev));
   };
 
+  // 顔フィルターの手動上書き（拡大表示から）
+  const toggleFace = (item: MediaItem, isFace: boolean) =>
+    patchMedia(item, { isFace }, { is_face: isFace });
+
   // お気に入りの切り替え（拡大表示から）
-  const toggleFavorite = async (item: MediaItem, isFavorite: boolean) => {
-    const res = await fetch(`/api/media/${item.media_key}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isFavorite }),
-    }).catch(() => null);
-    if (!res || !res.ok) return;
-    setItems((prev) =>
-      prev.map((i) => (i.media_key === item.media_key ? { ...i, is_favorite: isFavorite } : i))
-    );
-    setSelected((prev) =>
-      prev && prev.media_key === item.media_key ? { ...prev, is_favorite: isFavorite } : prev
-    );
-  };
+  const toggleFavorite = (item: MediaItem, isFavorite: boolean) =>
+    patchMedia(item, { isFavorite }, { is_favorite: isFavorite });
 
   return (
     <>

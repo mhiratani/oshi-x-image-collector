@@ -1,5 +1,6 @@
 package com.hilamalu.oshixcollector.ui.settings
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -40,6 +41,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -106,15 +108,12 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(stringResource(R.string.settings_x_section), style = MaterialTheme.typography.titleMedium)
-                    OutlinedTextField(
+                    AutoSaveTextField(
                         value = viewModel.xBearerToken,
                         onValueChange = { viewModel.xBearerToken = it },
-                        label = { Text(stringResource(R.string.settings_x_bearer_token)) },
-                        visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { if (!it.isFocused) viewModel.saveXBearerToken() }
+                        labelRes = R.string.settings_x_bearer_token,
+                        onSave = { viewModel.saveXBearerToken() },
+                        isPassword = true
                     )
                 }
             }
@@ -134,52 +133,12 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                         }
                     )
                     if (r2Expanded) {
-                        OutlinedTextField(
-                            value = viewModel.r2BucketName,
-                            onValueChange = { viewModel.r2BucketName = it },
-                            label = { Text(stringResource(R.string.settings_r2_bucket)) },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onFocusChanged { if (!it.isFocused) viewModel.saveR2Settings() }
-                        )
-                        OutlinedTextField(
-                            value = viewModel.r2AccountId,
-                            onValueChange = { viewModel.r2AccountId = it },
-                            label = { Text(stringResource(R.string.settings_r2_account_id)) },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onFocusChanged { if (!it.isFocused) viewModel.saveR2Settings() }
-                        )
-                        OutlinedTextField(
-                            value = viewModel.r2AccessKeyId,
-                            onValueChange = { viewModel.r2AccessKeyId = it },
-                            label = { Text(stringResource(R.string.settings_r2_access_key)) },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onFocusChanged { if (!it.isFocused) viewModel.saveR2Settings() }
-                        )
-                        OutlinedTextField(
-                            value = viewModel.r2SecretAccessKey,
-                            onValueChange = { viewModel.r2SecretAccessKey = it },
-                            label = { Text(stringResource(R.string.settings_r2_secret_key)) },
-                            visualTransformation = PasswordVisualTransformation(),
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onFocusChanged { if (!it.isFocused) viewModel.saveR2Settings() }
-                        )
-                        OutlinedTextField(
-                            value = viewModel.r2Endpoint,
-                            onValueChange = { viewModel.r2Endpoint = it },
-                            label = { Text(stringResource(R.string.settings_r2_endpoint)) },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onFocusChanged { if (!it.isFocused) viewModel.saveR2Settings() }
-                        )
+                        val saveR2 = { viewModel.saveR2Settings() }
+                        AutoSaveTextField(viewModel.r2BucketName, { viewModel.r2BucketName = it }, R.string.settings_r2_bucket, saveR2)
+                        AutoSaveTextField(viewModel.r2AccountId, { viewModel.r2AccountId = it }, R.string.settings_r2_account_id, saveR2)
+                        AutoSaveTextField(viewModel.r2AccessKeyId, { viewModel.r2AccessKeyId = it }, R.string.settings_r2_access_key, saveR2)
+                        AutoSaveTextField(viewModel.r2SecretAccessKey, { viewModel.r2SecretAccessKey = it }, R.string.settings_r2_secret_key, saveR2, isPassword = true)
+                        AutoSaveTextField(viewModel.r2Endpoint, { viewModel.r2Endpoint = it }, R.string.settings_r2_endpoint, saveR2)
                     }
                 }
             }
@@ -203,43 +162,11 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                     )
                     if (firebaseExpanded) {
                         Text(stringResource(R.string.settings_firebase_description))
-                        OutlinedTextField(
-                            value = viewModel.firebaseApiKey,
-                            onValueChange = { viewModel.firebaseApiKey = it },
-                            label = { Text(stringResource(R.string.settings_firebase_api_key)) },
-                            visualTransformation = PasswordVisualTransformation(),
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onFocusChanged { if (!it.isFocused) viewModel.saveFirebaseSettings() }
-                        )
-                        OutlinedTextField(
-                            value = viewModel.firebaseProjectId,
-                            onValueChange = { viewModel.firebaseProjectId = it },
-                            label = { Text(stringResource(R.string.settings_firebase_project_id)) },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onFocusChanged { if (!it.isFocused) viewModel.saveFirebaseSettings() }
-                        )
-                        OutlinedTextField(
-                            value = viewModel.firebaseAppId,
-                            onValueChange = { viewModel.firebaseAppId = it },
-                            label = { Text(stringResource(R.string.settings_firebase_app_id)) },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onFocusChanged { if (!it.isFocused) viewModel.saveFirebaseSettings() }
-                        )
-                        OutlinedTextField(
-                            value = viewModel.firebaseWebClientId,
-                            onValueChange = { viewModel.firebaseWebClientId = it },
-                            label = { Text(stringResource(R.string.settings_firebase_web_client_id)) },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .onFocusChanged { if (!it.isFocused) viewModel.saveFirebaseSettings() }
-                        )
+                        val saveFirebase = { viewModel.saveFirebaseSettings() }
+                        AutoSaveTextField(viewModel.firebaseApiKey, { viewModel.firebaseApiKey = it }, R.string.settings_firebase_api_key, saveFirebase, isPassword = true)
+                        AutoSaveTextField(viewModel.firebaseProjectId, { viewModel.firebaseProjectId = it }, R.string.settings_firebase_project_id, saveFirebase)
+                        AutoSaveTextField(viewModel.firebaseAppId, { viewModel.firebaseAppId = it }, R.string.settings_firebase_app_id, saveFirebase)
+                        AutoSaveTextField(viewModel.firebaseWebClientId, { viewModel.firebaseWebClientId = it }, R.string.settings_firebase_web_client_id, saveFirebase)
                     }
                 }
             }
@@ -330,6 +257,27 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
             }
         }
     }
+}
+
+/** フォーカスが外れた時に[onSave]で自動保存する設定入力欄。設定画面の全テキスト項目で共通。 */
+@Composable
+private fun AutoSaveTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    @StringRes labelRes: Int,
+    onSave: () -> Unit,
+    isPassword: Boolean = false
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(stringResource(labelRes)) },
+        visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .onFocusChanged { if (!it.isFocused) onSave() }
+    )
 }
 
 /** R2/Firebaseカードの折りたたみ見出し。タップで展開/収納をトグルする。 */

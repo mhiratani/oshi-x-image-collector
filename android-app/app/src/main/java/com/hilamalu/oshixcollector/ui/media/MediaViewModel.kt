@@ -29,12 +29,6 @@ data class AccountChip(
     val mediaCount: Int
 )
 
-/** 一覧末尾のバックフィル操作の状態（Web版のbackfill statusに対応）。 */
-data class BackfillUiState(
-    /** これ以上遡れる対象アカウントが1件も無い（Web版のallDone）。 */
-    val allDone: Boolean
-)
-
 // Firestore/ML Kitの呼び出しにタイムアウトが無く、通信が固まるとスピナーが無限に回り続けるため上限を設ける
 private const val SYNC_TIMEOUT_MS = 120_000L
 
@@ -90,17 +84,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             .map { accounts -> accounts.mapNotNull { a -> a.xUserId?.let { it to a.screenName } }.toMap() }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
-    /** 一覧末尾のバックフィルボタンの表示制御。 */
-    val backfillState: StateFlow<BackfillUiState> =
+    /** 一覧末尾のバックフィルボタンの表示制御。これ以上遡れる対象アカウントが1件も無い（Web版のallDone）。 */
+    val backfillAllDone: StateFlow<Boolean> =
         combine(repository.accounts, accountFilter) { accounts, filter ->
             val targets = accounts.filter { it.xUserId != null }
                 .let { if (filter == null) it else it.filter { a -> a.xUserId == filter } }
-            BackfillUiState(allDone = targets.isEmpty() || targets.all { it.backfillDone })
-        }.stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5_000),
-            BackfillUiState(allDone = true)
-        )
+            targets.isEmpty() || targets.all { it.backfillDone }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 
     val isFaceOnly: StateFlow<Boolean> = faceOnly
     val isFavoritesOnly: StateFlow<Boolean> = favoritesOnly
@@ -136,47 +126,34 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
      * 最新状態をローカルへ取り込み（pull）、続けてX APIから新着を取得する。
      * クラウド同期の失敗はX取得を妨げない（エラー表示のみ）。
      */
-    fun refresh() {
-        if (isRefreshing) return
-        viewModelScope.launch {
-            isRefreshing = true
-            errorMessage = null
+    fun refresh() = launchSyncTask(
+        isBusy = { isRefreshing },
+        setBusy = { isRefreshing = it },
+        timeoutMessage = "同期がタイムアウトしました。ネットワーク状況を確認してもう一度お試しください。"
+    ) {
+        val messages = mutableListOf<String>()
+
+        if (cloudBackupSettings.isEnabled.first() && googleAuthManager.currentUser != null) {
             try {
-                withTimeout(SYNC_TIMEOUT_MS) {
-                    val messages = mutableListOf<String>()
-
-                    if (cloudBackupSettings.isEnabled.first() && googleAuthManager.currentUser != null) {
-                        try {
-                            val synced = repository.restoreFromCloud()
-                            if (synced.mediaRowsRestored > 0 || synced.imagesDownloaded > 0 || synced.accountsRestored > 0) {
-                                messages += "クラウドからメタデータ${synced.mediaRowsRestored}件・画像${synced.imagesDownloaded}件を同期"
-                            }
-                        } catch (e: Exception) {
-                            errorMessage = "クラウド同期に失敗しました: ${e.message}"
-                        }
-                    }
-
-                    val result = repository.refreshAll()
-                    messages +=
-                        if (result.newMediaCount > 0) "新着画像 ${result.newMediaCount}枚を取得しました"
-                        else "新着はありませんでした"
-                    syncMessage = messages.joinToString("、")
-
-                    if (result.failedScreenNames.isNotEmpty()) {
-                        val names = result.failedScreenNames.joinToString(", ") { "@$it" }
-                        errorMessage = "$names の取得に失敗しました" +
-                            (result.firstError?.let { ": ${friendlyApiError(it)}" } ?: "")
-                    }
+                val synced = repository.restoreFromCloud()
+                if (synced.mediaRowsRestored > 0 || synced.imagesDownloaded > 0 || synced.accountsRestored > 0) {
+                    messages += "クラウドからメタデータ${synced.mediaRowsRestored}件・画像${synced.imagesDownloaded}件を同期"
                 }
-            } catch (e: TimeoutCancellationException) {
-                errorMessage = "同期がタイムアウトしました。ネットワーク状況を確認してもう一度お試しください。"
             } catch (e: Exception) {
-                errorMessage = e.message?.let(::friendlyApiError)
-            } finally {
-                isRefreshing = false
+                errorMessage = "クラウド同期に失敗しました: ${e.message}"
             }
-            // 顔判定はクラウドバックアップまでの完了を待たせず、別枠のインジケータで進める
-            runFaceDetection()
+        }
+
+        val result = repository.refreshAll()
+        messages +=
+            if (result.newMediaCount > 0) "新着画像 ${result.newMediaCount}枚を取得しました"
+            else "新着はありませんでした"
+        syncMessage = messages.joinToString("、")
+
+        if (result.failedScreenNames.isNotEmpty()) {
+            val names = result.failedScreenNames.joinToString(", ") { "@$it" }
+            errorMessage = "$names の取得に失敗しました" +
+                (result.firstError?.let { ": ${friendlyApiError(it)}" } ?: "")
         }
     }
 
@@ -184,22 +161,35 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
      * 一覧末尾の「過去の投稿をさらに読み込む」から呼ぶ。
      * Web版と同じく、1アカウントだけ絞り込み中はそのアカウントのみを対象にする。
      */
-    fun backfill() {
-        if (isBackfilling) return
+    fun backfill() = launchSyncTask(
+        isBusy = { isBackfilling },
+        setBusy = { isBackfilling = it },
+        timeoutMessage = "取得がタイムアウトしました。ネットワーク状況を確認してもう一度お試しください。"
+    ) {
+        repository.backfillAll(targetXUserId = accountFilter.value)
+    }
+
+    /** 同期系操作の共通枠: 多重起動ガード→タイムアウト付き実行→エラー表示→完了後に顔判定。 */
+    private fun launchSyncTask(
+        isBusy: () -> Boolean,
+        setBusy: (Boolean) -> Unit,
+        timeoutMessage: String,
+        block: suspend () -> Unit
+    ) {
+        if (isBusy()) return
         viewModelScope.launch {
-            isBackfilling = true
+            setBusy(true)
             errorMessage = null
             try {
-                withTimeout(SYNC_TIMEOUT_MS) {
-                    repository.backfillAll(targetXUserId = accountFilter.value)
-                }
+                withTimeout(SYNC_TIMEOUT_MS) { block() }
             } catch (e: TimeoutCancellationException) {
-                errorMessage = "取得がタイムアウトしました。ネットワーク状況を確認してもう一度お試しください。"
+                errorMessage = timeoutMessage
             } catch (e: Exception) {
                 errorMessage = e.message?.let(::friendlyApiError)
             } finally {
-                isBackfilling = false
+                setBusy(false)
             }
+            // 顔判定はクラウドバックアップまでの完了を待たせず、別枠のインジケータで進める
             runFaceDetection()
         }
     }
@@ -225,15 +215,20 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** 拡大表示からの顔判定の手動上書き（Web版のtoggleFace移植）。 */
-    fun overrideFace(mediaKey: String, isFace: Boolean) {
+    /** 拡大表示からの単発更新（顔判定上書き・お気に入り）を共通のエラーハンドリングで実行する。 */
+    private fun launchMutation(block: suspend () -> Unit) {
         viewModelScope.launch {
             try {
-                repository.overrideFace(mediaKey, isFace)
+                block()
             } catch (e: Exception) {
                 errorMessage = e.message
             }
         }
+    }
+
+    /** 拡大表示からの顔判定の手動上書き（Web版のtoggleFace移植）。 */
+    fun overrideFace(mediaKey: String, isFace: Boolean) = launchMutation {
+        repository.overrideFace(mediaKey, isFace)
     }
 
     fun setFaceOnly(enabled: Boolean) {
@@ -245,14 +240,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** 拡大表示からのお気に入りON/OFF切り替え。 */
-    fun toggleFavorite(mediaKey: String, isFavorite: Boolean) {
-        viewModelScope.launch {
-            try {
-                repository.setFavorite(mediaKey, isFavorite)
-            } catch (e: Exception) {
-                errorMessage = e.message
-            }
-        }
+    fun toggleFavorite(mediaKey: String, isFavorite: Boolean) = launchMutation {
+        repository.setFavorite(mediaKey, isFavorite)
     }
 
     /** ユーザー絞り込みシートでの選択。nullで「すべて」に戻す。 */

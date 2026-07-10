@@ -11,6 +11,7 @@ import com.hilamalu.oshixcollector.data.db.MediaAssetEntity
 import com.hilamalu.oshixcollector.data.db.TargetAccountEntity
 import com.hilamalu.oshixcollector.data.face.FaceDetector
 import com.hilamalu.oshixcollector.data.settings.SecureSettings
+import com.hilamalu.oshixcollector.data.xapi.PhotoMedia
 import com.hilamalu.oshixcollector.data.xapi.XApiClient
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
@@ -152,22 +153,7 @@ class MediaRepository(context: Context) {
                     quantity = tweetsCount
                 )
 
-                // 顔判定はクラウドバックアップ完了後に別枠(detectPendingFaces)でまとめて行うため、ここでは行わない
-                val newEntities = result.media.map { photo ->
-                    val localPath = runCatching { imageStorage.download(photo.mediaKey, photo.url) }.getOrNull()
-                    MediaAssetEntity(
-                        mediaKey = photo.mediaKey,
-                        tweetId = photo.tweetId,
-                        xUserId = xUserId,
-                        xCdnUrl = photo.url,
-                        localImagePath = localPath,
-                        r2BackupUrl = null,
-                        postedAt = photo.postedAt,
-                        createdAt = System.currentTimeMillis(),
-                        isFace = null,
-                        faceConfidence = null
-                    )
-                }
+                val newEntities = downloadAndBuildEntities(xUserId, result.media)
                 if (newEntities.isNotEmpty()) {
                     // IGNORE-on-conflictのため、実際に挿入された行だけを数える
                     newMediaCount += mediaAssetDao.insertAll(newEntities).count { it != -1L }
@@ -233,22 +219,7 @@ class MediaRepository(context: Context) {
                     quantity = tweetsCount
                 )
 
-                // 顔判定はクラウドバックアップ完了後に別枠(detectPendingFaces)でまとめて行うため、ここでは行わない
-                val newEntities = result.media.map { photo ->
-                    val localPath = runCatching { imageStorage.download(photo.mediaKey, photo.url) }.getOrNull()
-                    MediaAssetEntity(
-                        mediaKey = photo.mediaKey,
-                        tweetId = photo.tweetId,
-                        xUserId = xUserId,
-                        xCdnUrl = photo.url,
-                        localImagePath = localPath,
-                        r2BackupUrl = null,
-                        postedAt = photo.postedAt,
-                        createdAt = System.currentTimeMillis(),
-                        isFace = null,
-                        faceConfidence = null
-                    )
-                }
+                val newEntities = downloadAndBuildEntities(xUserId, result.media)
                 if (newEntities.isNotEmpty()) {
                     mediaAssetDao.insertAll(newEntities)
                 }
@@ -275,6 +246,26 @@ class MediaRepository(context: Context) {
             }
         }
     }
+
+    /**
+     * X APIから取得した写真を画像ダウンロードのうえRoom行に変換する（refreshAll/backfillAll共通）。
+     * 顔判定はクラウドバックアップ完了後に別枠([detectPendingFaces])でまとめて行うため、
+     * ここでは`isFace`を未判定(null)のままにする。
+     */
+    private suspend fun downloadAndBuildEntities(xUserId: String, photos: List<PhotoMedia>): List<MediaAssetEntity> =
+        photos.map { photo ->
+            val localPath = runCatching { imageStorage.download(photo.mediaKey, photo.url) }.getOrNull()
+            MediaAssetEntity(
+                mediaKey = photo.mediaKey,
+                tweetId = photo.tweetId,
+                xUserId = xUserId,
+                xCdnUrl = photo.url,
+                localImagePath = localPath,
+                r2BackupUrl = null,
+                postedAt = photo.postedAt,
+                createdAt = System.currentTimeMillis()
+            )
+        }
 
     /**
      * 未判定（[frontend/worker/faceDetect.js]と同じ対象条件: `isFace IS NULL AND NOT faceReviewed`）の

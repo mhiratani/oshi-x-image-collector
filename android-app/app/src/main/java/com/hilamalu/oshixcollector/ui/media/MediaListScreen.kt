@@ -82,7 +82,7 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
     val accountChips by viewModel.accountChips.collectAsState()
     val selectedAccountId by viewModel.selectedAccountId.collectAsState()
     val screenNames by viewModel.screenNameByUserId.collectAsState()
-    val backfillState by viewModel.backfillState.collectAsState()
+    val backfillAllDone by viewModel.backfillAllDone.collectAsState()
     val isFaceOnly by viewModel.isFaceOnly.collectAsState()
     val isFavoritesOnly by viewModel.isFavoritesOnly.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -155,7 +155,7 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            if (media.isEmpty() && backfillState.allDone && !viewModel.isBackfilling) {
+            if (media.isEmpty() && backfillAllDone && !viewModel.isBackfilling) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -194,7 +194,7 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         BackfillFooter(
                             itemCount = media.size,
-                            state = backfillState,
+                            allDone = backfillAllDone,
                             isBackfilling = viewModel.isBackfilling,
                             onBackfill = { viewModel.backfill() }
                         )
@@ -252,34 +252,43 @@ private fun AccountFilterSheet(
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         LazyColumn {
             item {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.media_filter_all)) },
-                    leadingContent = {
-                        RadioButton(selected = selectedAccountId == null, onClick = null)
-                    },
-                    modifier = Modifier.selectable(
-                        selected = selectedAccountId == null,
-                        onClick = { selectAndClose(null) },
-                        role = Role.RadioButton
-                    )
+                AccountFilterRow(
+                    label = stringResource(R.string.media_filter_all),
+                    count = null,
+                    selected = selectedAccountId == null,
+                    onClick = { selectAndClose(null) }
                 )
             }
             items(accountChips) { chip ->
-                ListItem(
-                    headlineContent = { Text("@${chip.screenName}") },
-                    leadingContent = {
-                        RadioButton(selected = chip.xUserId == selectedAccountId, onClick = null)
-                    },
-                    trailingContent = { Text("${chip.mediaCount}") },
-                    modifier = Modifier.selectable(
-                        selected = chip.xUserId == selectedAccountId,
-                        onClick = { selectAndClose(chip.xUserId) },
-                        role = Role.RadioButton
-                    )
+                AccountFilterRow(
+                    label = "@${chip.screenName}",
+                    count = chip.mediaCount,
+                    selected = chip.xUserId == selectedAccountId,
+                    onClick = { selectAndClose(chip.xUserId) }
                 )
             }
         }
     }
+}
+
+/** ユーザー絞り込みシートの1行（ラジオボタン＋ラベル＋任意の枚数表示）。 */
+@Composable
+private fun AccountFilterRow(
+    label: String,
+    count: Int?,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    ListItem(
+        headlineContent = { Text(label) },
+        leadingContent = { RadioButton(selected = selected, onClick = null) },
+        trailingContent = count?.let { { Text("$it") } },
+        modifier = Modifier.selectable(
+            selected = selected,
+            onClick = onClick,
+            role = Role.RadioButton
+        )
+    )
 }
 
 @Composable
@@ -323,7 +332,7 @@ private fun MediaTile(
 @Composable
 private fun BackfillFooter(
     itemCount: Int,
-    state: BackfillUiState,
+    allDone: Boolean,
     isBackfilling: Boolean,
     onBackfill: () -> Unit
 ) {
@@ -349,7 +358,7 @@ private fun BackfillFooter(
                     Text(stringResource(R.string.media_backfill_running))
                 }
             }
-            state.allDone -> {
+            allDone -> {
                 if (itemCount > 0) {
                     Text(
                         stringResource(R.string.media_backfill_all_done),
