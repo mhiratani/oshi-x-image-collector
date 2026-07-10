@@ -8,16 +8,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -49,8 +45,6 @@ fun AccountsScreen(viewModel: AccountsViewModel = viewModel()) {
     val accounts by viewModel.accounts.collectAsState()
     val mediaCounts by viewModel.mediaCountByUserId.collectAsState()
     var newScreenName by rememberSaveable { mutableStateOf("") }
-    // 削除確認ダイアログの対象（Web版のconfirm相当）
-    var deleteTarget by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(viewModel.errorMessage) {
@@ -118,13 +112,24 @@ fun AccountsScreen(viewModel: AccountsViewModel = viewModel()) {
                                         account.lastFetchedId?.let {
                                             Text(stringResource(R.string.accounts_last_fetched_id, it))
                                         }
+                                        if (account.syncPaused) {
+                                            Text(
+                                                stringResource(R.string.accounts_sync_paused_label),
+                                                color = MaterialTheme.colorScheme.outline
+                                            )
+                                        }
                                     }
                                 },
                                 trailingContent = {
-                                    IconButton(onClick = { deleteTarget = account.screenName }) {
-                                        Icon(
-                                            Icons.Filled.Delete,
-                                            contentDescription = stringResource(R.string.accounts_delete)
+                                    // 削除の概念は無く、追跡をやめたい場合は同期停止にする（データは残る）
+                                    TextButton(onClick = {
+                                        viewModel.setSyncPaused(account.screenName, !account.syncPaused)
+                                    }) {
+                                        Text(
+                                            stringResource(
+                                                if (account.syncPaused) R.string.accounts_sync_resume
+                                                else R.string.accounts_sync_pause
+                                            )
                                         )
                                     }
                                 }
@@ -136,25 +141,5 @@ fun AccountsScreen(viewModel: AccountsViewModel = viewModel()) {
             }
 
         }
-    }
-
-    deleteTarget?.let { screenName ->
-        AlertDialog(
-            onDismissRequest = { deleteTarget = null },
-            text = { Text(stringResource(R.string.accounts_delete_confirm, screenName)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.removeAccount(screenName)
-                    deleteTarget = null
-                }) {
-                    Text(stringResource(R.string.accounts_delete))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) {
-                    Text(stringResource(R.string.common_cancel))
-                }
-            }
-        )
     }
 }

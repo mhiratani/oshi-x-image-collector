@@ -16,7 +16,7 @@ export async function GET(req: Request) {
 
   const accounts = await targetAccounts.listAll(uid);
   const resolved = accounts.filter(
-    (a) => a.x_user_id !== null && (!account || a.x_user_id === account)
+    (a) => a.x_user_id !== null && !a.sync_paused && (!account || a.x_user_id === account)
   );
   const remaining = resolved.filter((a) => !a.backfill_done).length;
 

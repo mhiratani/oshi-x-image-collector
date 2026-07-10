@@ -87,7 +87,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     /** 一覧末尾のバックフィルボタンの表示制御。これ以上遡れる対象アカウントが1件も無い（Web版のallDone）。 */
     val backfillAllDone: StateFlow<Boolean> =
         combine(repository.accounts, accountFilter) { accounts, filter ->
-            val targets = accounts.filter { it.xUserId != null }
+            val targets = accounts.filter { it.xUserId != null && !it.syncPaused }
                 .let { if (filter == null) it else it.filter { a -> a.xUserId == filter } }
             targets.isEmpty() || targets.all { it.backfillDone }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)

@@ -48,8 +48,9 @@ export async function runBatch() {
 }
 
 // screen_name だけ登録されたアカウントの x_user_id を解決
+// （sync_paused のアカウントはAPIを呼ばない。以降の collect/backfill も同様）
 async function resolvePendingUserIds() {
-  const accounts = await targetAccounts.listUnresolved(OWNER_UID);
+  const accounts = (await targetAccounts.listUnresolved(OWNER_UID)).filter((a) => !a.sync_paused);
   for (const { screen_name } of accounts) {
     try {
       const id = await resolveUserId(screen_name);
@@ -70,7 +71,7 @@ async function resolvePendingUserIds() {
 // 初回クロールは取得したその場で画面に出す(revealed=true)が、既にlast_fetched_idが
 // あった＝定期実行での差分取得は revealed=false で保存し、ボタン押下時の公開を待つ
 async function collectAllAccounts() {
-  const accounts = await targetAccounts.listResolved(OWNER_UID);
+  const accounts = (await targetAccounts.listResolved(OWNER_UID)).filter((a) => !a.sync_paused);
 
   for (const account of accounts) {
     try {
@@ -120,7 +121,9 @@ async function collectAllAccounts() {
 // 以降このアカウントではAPIを呼ばない。
 // xUserId を指定すると、そのアカウントだけを対象にする（画面でユーザー絞り込み中の手動実行用）
 async function backfillAllAccounts(xUserId) {
-  const accounts = await targetAccounts.listForBackfill(OWNER_UID, xUserId);
+  const accounts = (await targetAccounts.listForBackfill(OWNER_UID, xUserId)).filter(
+    (a) => !a.sync_paused
+  );
 
   // 画面に「◯/◯件取得中」を出すための目安。実際にはアカウントごとに
   // 遡り切って途中で終わることもあるため、あくまで上限値

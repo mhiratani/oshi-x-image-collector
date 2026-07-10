@@ -41,8 +41,9 @@
     <string name="accounts_add_hint">アカウント名を入力（@なし）</string>
     <string name="accounts_add">追加</string>
     <string name="accounts_empty">追跡中のアカウントがありません</string>
-    <string name="accounts_delete">削除</string>
-    <string name="accounts_delete_confirm">@%1$s と収集済み画像を削除しますか？</string>
+    <string name="accounts_sync_pause">同期停止</string>
+    <string name="accounts_sync_resume">同期再開</string>
+    <string name="accounts_sync_paused_label">同期停止中（新着・過去の取得対象外）</string>
     <string name="accounts_media_count">収集画像数: %1$d</string>
     <string name="accounts_user_id">X User ID: %1$s</string>
     <string name="accounts_user_id_unresolved">X User ID: （未解決）「最新を取得」で解決されます</string>
@@ -104,8 +105,4 @@
     <string name="usage_col_cost">コスト</string>
     <string name="usage_empty_month">今月はまだAPI呼び出しがありません</string>
     <string name="usage_empty_recent">まだ記録がありません</string>
-
-    <!-- Common -->
-    <string name="common_delete">削除</string>
-    <string name="common_cancel">キャンセル</string>
 </resources>

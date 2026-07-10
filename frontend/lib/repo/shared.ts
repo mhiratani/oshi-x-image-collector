@@ -13,20 +13,8 @@ export function chunk<T>(items: T[], size: number): T[][] {
   return out;
 }
 
-// クエリに一致する全ドキュメントを500件ずつバッチ削除する
-// （FirestoreにはUPDATE/DELETE ... WHERE 相当が無いため、まずクエリしてから消す）
-export async function deleteQueryInBatches(query: FirebaseFirestore.Query): Promise<void> {
-  for (;;) {
-    const snap = await query.limit(FIRESTORE_BATCH_LIMIT).get();
-    if (snap.empty) return;
-    const batch = db.batch();
-    snap.docs.forEach((d) => batch.delete(d.ref));
-    await batch.commit();
-    if (snap.size < FIRESTORE_BATCH_LIMIT) return;
-  }
-}
-
 // クエリに一致する全ドキュメントに500件ずつバッチで同じ更新をかける
+// （FirestoreにはUPDATE ... WHERE 相当が無いため、まずクエリしてから更新する）
 export async function updateQueryInBatches(
   query: FirebaseFirestore.Query,
   update: Record<string, unknown>

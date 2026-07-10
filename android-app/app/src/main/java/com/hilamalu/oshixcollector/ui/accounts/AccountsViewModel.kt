@@ -39,8 +39,15 @@ class AccountsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun removeAccount(screenName: String) {
-        viewModelScope.launch { repository.removeAccount(screenName) }
+    /** 同期停止/再開の切り替え（削除の代替。収集済みデータは残す）。 */
+    fun setSyncPaused(screenName: String, paused: Boolean) {
+        viewModelScope.launch {
+            try {
+                repository.setAccountSyncPaused(screenName, paused)
+            } catch (e: Exception) {
+                errorMessage = e.message
+            }
+        }
     }
 
     fun dismissError() {

@@ -11,9 +11,6 @@ interface MediaAssetDao {
     @Query("SELECT * FROM media_assets ORDER BY postedAt DESC, mediaKey DESC")
     fun observeAll(): Flow<List<MediaAssetEntity>>
 
-    @Query("SELECT * FROM media_assets WHERE xUserId = :xUserId ORDER BY postedAt DESC, mediaKey DESC")
-    fun observeByAccount(xUserId: String): Flow<List<MediaAssetEntity>>
-
     /** [frontend/worker/batch.js]の insertMedia (`ON CONFLICT (media_key) DO NOTHING`) と同じ挙動。 */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(assets: List<MediaAssetEntity>): List<Long>
@@ -54,9 +51,6 @@ interface MediaAssetDao {
 
     @Query("SELECT * FROM media_assets WHERE mediaKey = :mediaKey")
     suspend fun getByMediaKey(mediaKey: String): MediaAssetEntity?
-
-    @Query("DELETE FROM media_assets WHERE xUserId = :xUserId")
-    suspend fun deleteByAccount(xUserId: String)
 
     /**
      * クラウド同期(pull)用。ローカル専有フィールド（[MediaAssetEntity.localImagePath],

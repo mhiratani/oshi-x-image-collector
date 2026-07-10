@@ -6,6 +6,7 @@ type Account = {
   screen_name: string;
   x_user_id: string | null;
   last_fetched_id: string | null;
+  sync_paused: boolean;
   media_count: number;
   created_at: string;
   share_token: string | null;
@@ -94,10 +95,12 @@ export default function AccountsPage() {
     }
   };
 
-  const removeAccount = async (screenName: string) => {
-    if (!confirm(`@${screenName} と収集済み画像レコードを削除しますか？`)) return;
-    await fetch(`/api/accounts?screenName=${encodeURIComponent(screenName)}`, {
-      method: 'DELETE',
+  // 同期停止/再開。アカウント削除の概念は無く、追跡をやめたい場合は停止にする（データは残る）
+  const toggleSyncPaused = async (account: Account) => {
+    await fetch('/api/accounts', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ screenName: account.screen_name, syncPaused: !account.sync_paused }),
     });
     load();
   };
@@ -143,8 +146,11 @@ export default function AccountsPage() {
               {accounts.map((a) => {
                 const busy = shareBusy === a.screen_name;
                 return (
-                  <tr key={a.screen_name}>
-                    <td>@{a.screen_name}</td>
+                  <tr key={a.screen_name} style={a.sync_paused ? { opacity: 0.6 } : undefined}>
+                    <td>
+                      @{a.screen_name}
+                      {a.sync_paused && ' ⏸'}
+                    </td>
                     <td>{a.x_user_id ?? '（未解決）'}</td>
                     <td>{a.media_count}</td>
                     <td>{a.last_fetched_id ?? '—'}</td>
@@ -177,8 +183,8 @@ export default function AccountsPage() {
                       )}
                     </td>
                     <td>
-                      <button className="danger" onClick={() => removeAccount(a.screen_name)}>
-                        削除
+                      <button className="chip" onClick={() => toggleSyncPaused(a)}>
+                        {a.sync_paused ? '▶ 同期再開' : '⏸ 同期停止'}
                       </button>
                     </td>
                   </tr>

@@ -1,6 +1,5 @@
 import { db } from '@/lib/firestore';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { deleteQueryInBatches } from './shared';
 
 const col = () => db.collection('share_links');
 
@@ -53,9 +52,4 @@ export async function revoke(token: string): Promise<boolean> {
   if (!link || link.revoked_at) return false;
   await col().doc(token).update({ revoked_at: FieldValue.serverTimestamp() });
   return true;
-}
-
-// target_accounts 削除時のカスケード削除で使う
-export async function deleteAllShareLinksForScreenName(screenName: string): Promise<void> {
-  await deleteQueryInBatches(col().where('screen_name', '==', screenName));
 }

@@ -1,7 +1,6 @@
 package com.hilamalu.oshixcollector.data.db
 
 import androidx.room.Dao
-import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -37,11 +36,4 @@ interface TargetAccountDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(accounts: List<TargetAccountEntity>)
-
-
-    @Delete
-    suspend fun delete(account: TargetAccountEntity)
-
-    @Query("DELETE FROM target_accounts WHERE screenName = :screenName")
-    suspend fun deleteByScreenName(screenName: String)
 }

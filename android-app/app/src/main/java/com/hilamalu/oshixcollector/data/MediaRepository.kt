@@ -93,15 +93,18 @@ class MediaRepository(context: Context) {
         )
     }
 
-    suspend fun removeAccount(screenName: String) {
+    /**
+     * アカウントの同期停止/再開。このアプリに「アカウント削除」の概念は無く、追跡をやめたい
+     * 場合は同期停止にする（収集済みの画像・メタデータはローカルにもクラウドにも残る）。
+     * クラウドバックアップON時はその場でFirestoreへ反映し、失敗は例外で呼び出し元へ伝える。
+     */
+    suspend fun setAccountSyncPaused(screenName: String, paused: Boolean) {
         val account = targetAccountDao.getByScreenName(screenName) ?: return
-        account.xUserId?.let { xUserId ->
-            for (asset in mediaAssetDao.observeByAccount(xUserId).first()) {
-                imageStorage.delete(asset.mediaKey)
-            }
-            mediaAssetDao.deleteByAccount(xUserId)
+        val updated = account.copy(syncPaused = paused)
+        targetAccountDao.update(updated)
+        if (cloudBackupSettings.isEnabled.first()) {
+            mirrorOrWrapError { firestoreMirror.mirrorTargetAccountOrThrow(updated) }
         }
-        targetAccountDao.deleteByScreenName(screenName)
     }
 
     /** 「最新を取得」ボタンから呼ぶ。全追跡アカウントについて新着を取得しローカル保存する。 */
@@ -114,6 +117,7 @@ class MediaRepository(context: Context) {
         var firstError: String? = null
 
         for (account in targetAccountDao.getAll()) {
+            if (account.syncPaused) continue
             try {
                 val isInitialCrawl = account.lastFetchedId == null
 
@@ -199,7 +203,7 @@ class MediaRepository(context: Context) {
 
         for (account in targetAccountDao.getAll()) {
             val xUserId = account.xUserId
-            if (xUserId == null || account.backfillDone) continue
+            if (xUserId == null || account.backfillDone || account.syncPaused) continue
             if (targetXUserId != null && xUserId != targetXUserId) continue
 
             try {
@@ -332,8 +336,13 @@ class MediaRepository(context: Context) {
     private suspend fun mirrorUserEditOrThrow(mediaKey: String) {
         if (!cloudBackupSettings.isEnabled.first()) return
         val asset = mediaAssetDao.getByMediaKey(mediaKey) ?: return
+        mirrorOrWrapError { firestoreMirror.mirrorMediaAssetOrThrow(asset) }
+    }
+
+    /** ユーザー操作のミラー失敗をユーザー向けメッセージ付きの例外に変換する。 */
+    private suspend fun mirrorOrWrapError(block: suspend () -> Unit) {
         try {
-            firestoreMirror.mirrorMediaAssetOrThrow(asset)
+            block()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

@@ -14,7 +14,13 @@ data class TargetAccountEntity(
     /** バックフィル（過去方向の遡り取得）の進捗カーソル。Web/Android共有の進捗マーカー。 */
     val backfillCursor: String? = null,
     /** trueになったら、これ以上遡る投稿が無い（またはAPI上限到達）ため以降バックフィルを行わない。 */
-    val backfillDone: Boolean = false
+    val backfillDone: Boolean = false,
+    /**
+     * 同期停止。trueの間は新着取得・バックフィルの対象から外す（収集済みデータは残す）。
+     * このアプリに「アカウント削除」の概念は無く、追跡をやめたい場合はこのフラグで停止する。
+     * Web/Android共有フィールド（Firestoreの`sync_paused`）。
+     */
+    val syncPaused: Boolean = false
 )
 
 

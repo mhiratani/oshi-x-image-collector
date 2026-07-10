@@ -1,6 +1,6 @@
 import { db } from '@/lib/firestore';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { chunk, deleteQueryInBatches, updateQueryInBatches, FIRESTORE_BATCH_LIMIT, IN_QUERY_LIMIT } from './shared';
+import { chunk, updateQueryInBatches, FIRESTORE_BATCH_LIMIT, IN_QUERY_LIMIT } from './shared';
 
 const col = (uid: string) => db.collection('users').doc(uid).collection('mediaAssets');
 
@@ -190,9 +190,4 @@ export async function listPendingFaceDetection(uid: string, batchSize: number): 
 
 export async function markFaceResult(uid: string, mediaKey: string, isFace: boolean, confidence: number): Promise<void> {
   await col(uid).doc(mediaKey).update({ is_face: isFace, face_confidence: confidence });
-}
-
-// target_accounts 削除時のカスケード削除で使う
-export async function deleteAllMediaForXUserId(uid: string, xUserId: string): Promise<void> {
-  await deleteQueryInBatches(col(uid).where('x_user_id', '==', xUserId));
 }

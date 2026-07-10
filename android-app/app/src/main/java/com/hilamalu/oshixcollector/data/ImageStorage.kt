@@ -37,8 +37,4 @@ class ImageStorage(
         destination.outputStream().use { out -> out.write(bytes) }
         destination.absolutePath
     }
-
-    fun delete(mediaKey: String) {
-        fileFor(mediaKey).delete()
-    }
 }

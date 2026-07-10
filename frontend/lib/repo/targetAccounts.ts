@@ -1,7 +1,5 @@
 import { db } from '@/lib/firestore';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { deleteAllMediaForXUserId } from './media';
-import { deleteAllShareLinksForScreenName } from './shareLinks';
 
 const col = (uid: string) => db.collection('users').doc(uid).collection('targetAccounts');
 
@@ -11,6 +9,9 @@ export type TargetAccount = {
   last_fetched_id: string | null;
   backfill_cursor: string | null;
   backfill_done: boolean;
+  /** 同期停止。trueの間は新着取得・バックフィルの対象外（収集済みデータは残す）。
+      アカウント削除の概念は無く、追跡をやめたい場合はこのフラグで停止する。 */
+  sync_paused: boolean;
   checked_at: Date | null;
   created_at: Date | null;
 };
@@ -24,6 +25,7 @@ function fromSnap(snap: FirebaseFirestore.DocumentSnapshot): TargetAccount | nul
     last_fetched_id: data.last_fetched_id ?? null,
     backfill_cursor: data.backfill_cursor ?? null,
     backfill_done: data.backfill_done ?? false,
+    sync_paused: data.sync_paused ?? false,
     checked_at: data.checked_at ? (data.checked_at as Timestamp).toDate() : null,
     created_at: data.created_at ? (data.created_at as Timestamp).toDate() : null,
   };
@@ -42,6 +44,7 @@ export async function createIfNotExists(uid: string, screenName: string): Promis
       last_fetched_id: null,
       backfill_cursor: null,
       backfill_done: false,
+      sync_paused: false,
       checked_at: null,
       created_at: FieldValue.serverTimestamp(),
     });
@@ -133,14 +136,8 @@ export async function updateBackfill(
   await col(uid).doc(screenName).update(payload);
 }
 
-// target_accounts 削除。media_assets(x_user_id)・share_links(screen_name) を
-// 先にカスケード削除してから本体を消す（PostgresのON DELETE CASCADE相当を手動実装）
-export async function deleteCascade(uid: string, screenName: string): Promise<void> {
-  const account = await get(uid, screenName);
-  if (!account) return;
-  if (account.x_user_id) {
-    await deleteAllMediaForXUserId(uid, account.x_user_id);
-  }
-  await deleteAllShareLinksForScreenName(screenName);
-  await col(uid).doc(screenName).delete();
+// 同期停止/再開。アカウント削除の概念は無く、追跡をやめたい場合はこれで収集対象から外す
+// （収集済みの画像・メタデータは残る。Android側とFirestoreの`sync_paused`を共有する）
+export async function setSyncPaused(uid: string, screenName: string, paused: boolean): Promise<void> {
+  await col(uid).doc(screenName).update({ sync_paused: paused });
 }

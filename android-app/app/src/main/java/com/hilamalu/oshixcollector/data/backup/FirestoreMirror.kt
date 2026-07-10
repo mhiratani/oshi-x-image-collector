@@ -49,23 +49,32 @@ class FirestoreMirror(
     }
 
     suspend fun mirrorTargetAccount(account: TargetAccountEntity) {
-        val userDoc = userDocOrNull() ?: return
         runCatching {
-            userDoc.collection("targetAccounts").document(account.screenName)
-                .set(
-                    mapOf(
-                        "screen_name" to account.screenName,
-                        "x_user_id" to account.xUserId,
-                        "last_fetched_id" to account.lastFetchedId,
-                        "checked_at" to account.lastCheckedAt?.let { Timestamp(it / 1000, 0) },
-                        "created_at" to Timestamp(account.createdAt / 1000, 0),
-                        "backfill_cursor" to account.backfillCursor,
-                        "backfill_done" to account.backfillDone
-                    ),
-                    SetOptions.merge()
-                )
-                .await()
+            mirrorTargetAccountOrThrow(account)
         }.onFailure { e -> Log.w(TAG, "mirrorTargetAccount failed: ${account.screenName}", e) }
+    }
+
+    /**
+     * ユーザー操作（同期停止/再開の切り替え等）1件分のミラー。バッチ系と違い失敗を握りつぶさず
+     * 例外を投げる（失敗を無視するとローカルだけ変わり、次回同期でクラウド値に巻き戻るため）。
+     */
+    suspend fun mirrorTargetAccountOrThrow(account: TargetAccountEntity) {
+        val userDoc = userDocOrNull() ?: error("Googleサインインが必要です")
+        userDoc.collection("targetAccounts").document(account.screenName)
+            .set(
+                mapOf(
+                    "screen_name" to account.screenName,
+                    "x_user_id" to account.xUserId,
+                    "last_fetched_id" to account.lastFetchedId,
+                    "checked_at" to account.lastCheckedAt?.let { Timestamp(it / 1000, 0) },
+                    "created_at" to Timestamp(account.createdAt / 1000, 0),
+                    "backfill_cursor" to account.backfillCursor,
+                    "backfill_done" to account.backfillDone,
+                    "sync_paused" to account.syncPaused
+                ),
+                SetOptions.merge()
+            )
+            .await()
     }
 
     suspend fun mirrorMediaAssets(assets: List<MediaAssetEntity>) {
@@ -122,7 +131,8 @@ class FirestoreMirror(
                 lastCheckedAt = doc.getTimestamp("checked_at")?.toDate()?.time,
                 createdAt = doc.getTimestamp("created_at")?.toDate()?.time ?: 0L,
                 backfillCursor = doc.getString("backfill_cursor"),
-                backfillDone = doc.getBoolean("backfill_done") ?: false
+                backfillDone = doc.getBoolean("backfill_done") ?: false,
+                syncPaused = doc.getBoolean("sync_paused") ?: false
             )
         }
     }

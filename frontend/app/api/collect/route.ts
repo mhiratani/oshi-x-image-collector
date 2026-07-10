@@ -16,8 +16,11 @@ export async function GET() {
   const resolvedXUserIds = accounts.map((a) => a.x_user_id).filter((id): id is string => id !== null);
 
   const totalPending = await countUnrevealed(uid, resolvedXUserIds);
-  const needsInitial = accounts.filter((a) => a.x_user_id !== null && a.last_fetched_id === null).length;
-  const unresolved = accounts.filter((a) => a.x_user_id === null).length;
+  // sync_paused のアカウントは収集対象外のため「取得待ち」に数えない
+  const needsInitial = accounts.filter(
+    (a) => !a.sync_paused && a.x_user_id !== null && a.last_fetched_id === null
+  ).length;
+  const unresolved = accounts.filter((a) => !a.sync_paused && a.x_user_id === null).length;
 
   return NextResponse.json({
     running: workerState.running,

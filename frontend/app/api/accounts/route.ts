@@ -18,6 +18,7 @@ export async function GET() {
       screen_name: a.screen_name,
       x_user_id: a.x_user_id,
       last_fetched_id: a.last_fetched_id,
+      sync_paused: a.sync_paused,
       created_at: a.created_at,
       media_count: a.x_user_id ? await media.countForXUserId(uid, a.x_user_id) : 0,
       share_token: await shareLinks.findActiveToken(a.screen_name),
@@ -47,17 +48,19 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, screenName });
 }
 
-// DELETE /api/accounts?screenName=xxx
-// 推しリストから外す（収集画像も CASCADE 削除）
-export async function DELETE(req: NextRequest) {
+// PATCH /api/accounts  body: { screenName: string, syncPaused: boolean }
+// 同期停止/再開。アカウント削除の概念は無く、追跡をやめたい場合は停止にする
+// （収集済みの画像・メタデータは残る）
+export async function PATCH(req: NextRequest) {
   const session = await auth();
   const uid = session!.user!.uid!;
 
-  const screenName = req.nextUrl.searchParams.get('screenName');
-  if (!screenName) {
-    return NextResponse.json({ error: 'screenName は必須です' }, { status: 400 });
+  const body = await req.json().catch(() => null);
+  const screenName = typeof body?.screenName === 'string' ? body.screenName : '';
+  if (!screenName || typeof body?.syncPaused !== 'boolean') {
+    return NextResponse.json({ error: 'screenNameとsyncPaused(boolean)が必要です' }, { status: 400 });
   }
 
-  await targetAccounts.deleteCascade(uid, screenName);
+  await targetAccounts.setSyncPaused(uid, screenName, body.syncPaused);
   return NextResponse.json({ ok: true });
 }
