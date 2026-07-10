@@ -58,6 +58,8 @@ export default function GalleryPage() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
+  // 画像一覧の取得失敗（Firestoreインデックス未作成など）。フィルタ変更でリセットされる
+  const [mediaError, setMediaError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [filter, setFilter] = useState<string[]>([]);
   const [faceOnly, setFaceOnly] = useState(false);
@@ -89,7 +91,15 @@ export default function GalleryPage() {
         if (filter.length > 0) params.set('account', filter.join(','));
         if (faceOnly) params.set('faceOnly', 'true');
         if (favoriteOnly) params.set('favoriteOnly', 'true');
-        const res = await fetch(`/api/media?${params}`);
+        const res = await fetch(`/api/media?${params}`).catch(() => null);
+        if (!res || !res.ok) {
+          // 失敗時はhasMoreを止める。止めないと無限スクロールの監視が即座に
+          // 再発火し、失敗リクエストと「読み込み中」表示を無限に繰り返してしまう
+          setMediaError('画像一覧の取得に失敗しました。時間をおいてフィルタを切り替え直すか、再読み込みしてください。');
+          setHasMore(false);
+          return;
+        }
+        setMediaError(null);
         const json = await res.json();
         setItems((prev) => {
           const base = reset ? [] : prev;
@@ -114,6 +124,7 @@ export default function GalleryPage() {
     setItems([]);
     setCursor(null);
     setHasMore(true);
+    setMediaError(null);
     loadMore(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, faceOnly, favoriteOnly]);
@@ -280,6 +291,7 @@ export default function GalleryPage() {
           ⚠ {friendlyApiError(lastError)}
         </div>
       )}
+      {mediaError && <div className="banner-error">⚠ {mediaError}</div>}
       {(collecting || collectStatus.running) && (
         <div className="banner-info">⬇ ポストを取得中…</div>
       )}
