@@ -374,7 +374,7 @@ class MediaRepository(context: Context) {
             val localPath = asset.localImagePath ?: continue
             try {
                 val bytes = File(localPath).readBytes()
-                val r2Url = r2Uploader.upload(asset.mediaKey, asset.xUserId, bytes)
+                val r2Url = r2Uploader.upload(asset.mediaKey, asset.xUserId, asset.xCdnUrl, bytes)
                 mediaAssetDao.updateR2BackupUrl(asset.mediaKey, r2Url)
             } catch (e: Exception) {
                 Log.w(TAG, "R2 backup failed for ${asset.mediaKey}", e)
@@ -448,7 +448,8 @@ class MediaRepository(context: Context) {
                 async {
                     semaphore.withPermit {
                         runCatching {
-                            val bytes = r2Uploader.download(asset.mediaKey, asset.xUserId)
+                            val r2Url = checkNotNull(asset.r2BackupUrl) { "r2BackupUrlが未設定" }
+                            val bytes = r2Uploader.download(r2Url)
                             val path = imageStorage.saveBytes(asset.mediaKey, bytes)
                             mediaAssetDao.updateLocalImagePath(asset.mediaKey, path)
                         }.onSuccess {

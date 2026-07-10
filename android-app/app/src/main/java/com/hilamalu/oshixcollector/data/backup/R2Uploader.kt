@@ -11,7 +11,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 /**
  * 画像をCloudflare R2へ直接PUTする（design.md 3.3の「クラウドバックアップON時のみ、
  * 設定画面で入力したR2/S3のクレデンシャルを使ってAndroidアプリから直接アップロード」）。
- * キー命名は [frontend/worker/backup.js] と同じ `<x_user_id>/<media_key>.<ext>` に揃える。
+ * キー命名は [frontend/worker/backup.js] と同じ `<x_user_id>/<media_key>.<ext>`
+ * （拡張子はX CDNのURLから取得。pngやgifもWeb版と同じキー・Content-Typeで保存する）。
  */
 class R2Uploader(
     private val secureSettings: SecureSettings,
@@ -33,15 +34,19 @@ class R2Uploader(
         return R2Config(host, bucket, accessKeyId, secretAccessKey)
     }
 
-    private fun keyFor(mediaKey: String, xUserId: String) = "$xUserId/$mediaKey.jpg"
+    /** [frontend/worker/backup.js]と同じく、X CDNのURLパスから実際の拡張子を取り出す（不明ならjpg）。 */
+    private fun extFor(xCdnUrl: String): String =
+        xCdnUrl.substringBefore('?').substringAfterLast('/')
+            .substringAfterLast('.', "").lowercase().ifEmpty { "jpg" }
 
     /** アップロード成功時、Web版と同じ相対パス（`/backups/<key>`）を返す。 */
-    suspend fun upload(mediaKey: String, xUserId: String, imageBytes: ByteArray): String =
+    suspend fun upload(mediaKey: String, xUserId: String, xCdnUrl: String, imageBytes: ByteArray): String =
         withContext(Dispatchers.IO) {
             val config = resolveConfig()
-            val key = keyFor(mediaKey, xUserId)
+            val ext = extFor(xCdnUrl)
+            val key = "$xUserId/$mediaKey.$ext"
             val uriPath = "/${config.bucket}/$key"
-            val contentType = "image/jpeg"
+            val contentType = CONTENT_TYPES[ext] ?: "application/octet-stream"
 
             val signed = Sigv4Signer.signPut(
                 accessKeyId = config.accessKeyId,
@@ -64,14 +69,18 @@ class R2Uploader(
                 }
             }
 
-            "/backups/$key"
+            "$PUBLIC_PATH_PREFIX$key"
         }
 
-    /** クラウドバックアップからの復元用。R2から画像本体をダウンロードして返す。 */
-    suspend fun download(mediaKey: String, xUserId: String): ByteArray =
+    /**
+     * クラウドバックアップからの復元用。R2から画像本体をダウンロードして返す。
+     * キーはミラー時に記録した`r2_backup_url`（`/backups/<key>`）から復元する。
+     * 命名規則からの再構築だと、Web版がpng等でバックアップした画像とキーが一致しないため。
+     */
+    suspend fun download(r2BackupUrl: String): ByteArray =
         withContext(Dispatchers.IO) {
             val config = resolveConfig()
-            val key = keyFor(mediaKey, xUserId)
+            val key = r2BackupUrl.removePrefix(PUBLIC_PATH_PREFIX)
             val uriPath = "/${config.bucket}/$key"
 
             val signed = Sigv4Signer.signGet(
@@ -95,4 +104,18 @@ class R2Uploader(
                 body.bytes()
             }
         }
+
+    private companion object {
+        /** Web版の配信ルート（app/backups/[...path]）に合わせた公開パスの接頭辞。 */
+        const val PUBLIC_PATH_PREFIX = "/backups/"
+
+        /** [frontend/worker/backup.js]のCONTENT_TYPESと同じ対応表。 */
+        val CONTENT_TYPES = mapOf(
+            "jpg" to "image/jpeg",
+            "jpeg" to "image/jpeg",
+            "png" to "image/png",
+            "gif" to "image/gif",
+            "webp" to "image/webp"
+        )
+    }
 }
