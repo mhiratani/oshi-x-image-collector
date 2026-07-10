@@ -158,11 +158,8 @@ class MediaRepository(context: Context) {
                     quantity = tweetsCount
                 )
 
-                val newEntities = downloadAndBuildEntities(xUserId, result.media)
-                if (newEntities.isNotEmpty()) {
-                    // IGNORE-on-conflictのため、実際に挿入された行だけを数える
-                    newMediaCount += mediaAssetDao.insertAll(newEntities).count { it != -1L }
-                }
+                val inserted = insertNewEntities(downloadAndBuildEntities(xUserId, result.media))
+                newMediaCount += inserted.size
 
                 var updatedAccount = account.copy(
                     xUserId = xUserId,
@@ -178,8 +175,8 @@ class MediaRepository(context: Context) {
 
                 if (backupEnabled) {
                     firestoreMirror.mirrorTargetAccount(updatedAccount)
-                    firestoreMirror.mirrorMediaAssets(newEntities)
-                    backupImages(newEntities)
+                    firestoreMirror.mirrorMediaAssets(inserted)
+                    backupImages(inserted)
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "refresh failed for @${account.screenName}", e)
@@ -224,10 +221,7 @@ class MediaRepository(context: Context) {
                     quantity = tweetsCount
                 )
 
-                val newEntities = downloadAndBuildEntities(xUserId, result.media)
-                if (newEntities.isNotEmpty()) {
-                    mediaAssetDao.insertAll(newEntities)
-                }
+                val inserted = insertNewEntities(downloadAndBuildEntities(xUserId, result.media))
 
                 val updatedAccount = account.copy(
                     backfillCursor = result.oldestId ?: untilId,
@@ -237,19 +231,32 @@ class MediaRepository(context: Context) {
 
                 if (backupEnabled) {
                     firestoreMirror.mirrorTargetAccount(updatedAccount)
-                    firestoreMirror.mirrorMediaAssets(newEntities)
-                    backupImages(newEntities)
+                    firestoreMirror.mirrorMediaAssets(inserted)
+                    backupImages(inserted)
                 }
 
                 Log.i(
                     TAG,
-                    "backfill @${account.screenName}: ${newEntities.size} photos" +
+                    "backfill @${account.screenName}: ${inserted.size} photos" +
                         if (updatedAccount.backfillDone) " — 完了（これ以上過去はありません）" else " (cursor: ${updatedAccount.backfillCursor})"
                 )
             } catch (e: Exception) {
                 Log.w(TAG, "backfill failed for @${account.screenName}", e)
             }
         }
+    }
+
+    /**
+     * IGNORE-on-conflictで挿入し、実際に新規挿入された行だけを返す（refreshAll/backfillAll共通）。
+     * 重複取得した既存行までミラー・バックアップ対象にすると、Web側で付いた
+     * is_face/is_favorite/r2_backup_url等を取得直後の素の値でmerge上書きして巻き戻してしまうため、
+     * クラウドへ送るのは新規行に限定する。
+     */
+    private suspend fun insertNewEntities(entities: List<MediaAssetEntity>): List<MediaAssetEntity> {
+        if (entities.isEmpty()) return emptyList()
+        return mediaAssetDao.insertAll(entities)
+            .zip(entities)
+            .mapNotNull { (rowId, entity) -> entity.takeIf { rowId != -1L } }
     }
 
     /**
