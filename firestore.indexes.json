@@ -92,7 +92,26 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "purpose", "order": "ASCENDING" },
-        { "fieldPath": "called_at", "order": "ASCENDING" }
+        { "fieldPath": "called_at", "order": "ASCENDING" },
+        { "fieldPath": "cost_usd", "order": "ASCENDING" },
+        { "fieldPath": "quantity", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "apiUsageLog",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "called_at", "order": "ASCENDING" },
+        { "fieldPath": "cost_usd", "order": "ASCENDING" },
+        { "fieldPath": "quantity", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "apiUsageLog",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "called_at", "order": "ASCENDING" },
+        { "fieldPath": "cost_usd", "order": "ASCENDING" }
       ]
     }
   ],
