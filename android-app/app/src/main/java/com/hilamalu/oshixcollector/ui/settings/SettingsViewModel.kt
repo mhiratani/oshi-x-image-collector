@@ -1,6 +1,7 @@
 package com.hilamalu.oshixcollector.ui.settings
 
 import android.app.Application
+import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -11,11 +12,22 @@ import com.hilamalu.oshixcollector.data.backup.CloudBackupSettings
 import com.hilamalu.oshixcollector.data.backup.FirebaseAppProvider
 import com.hilamalu.oshixcollector.data.backup.GoogleAuthManager
 import com.hilamalu.oshixcollector.data.settings.SecureSettings
+import com.hilamalu.oshixcollector.data.settings.SettingsTransfer
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/** 設定エクスポート/インポート(機種変更引き継ぎ)の結果表示用。 */
+sealed interface TransferUiState {
+    data object Idle : TransferUiState
+    data object Exported : TransferUiState
+    data object Imported : TransferUiState
+    data class Failed(val message: String) : TransferUiState
+}
 
 sealed interface RestoreUiState {
     data object Idle : RestoreUiState
@@ -198,5 +210,70 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun dismissRestoreState() {
         restoreState = RestoreUiState.Idle
+    }
+
+    var transferState by mutableStateOf<TransferUiState>(TransferUiState.Idle)
+        private set
+
+    /**
+     * 全設定をパスフレーズ暗号化して[uri]（SAFで選んだ保存先）へ書き出す。
+     * 入力欄の編集途中の値も含めるため、先にsaveAll()で保存してから読み出す。
+     */
+    fun exportSettings(uri: Uri, passphrase: String) {
+        viewModelScope.launch {
+            transferState = try {
+                saveAll()
+                withContext(Dispatchers.IO) {
+                    val bytes = SettingsTransfer.encrypt(
+                        SettingsTransfer.payloadFrom(secureSettings),
+                        passphrase.toCharArray()
+                    )
+                    val context = getApplication<Application>()
+                    context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
+                        ?: throw IllegalStateException("保存先を開けませんでした")
+                }
+                TransferUiState.Exported
+            } catch (e: Exception) {
+                TransferUiState.Failed(e.message ?: e.javaClass.simpleName)
+            }
+        }
+    }
+
+    /**
+     * [uri]の暗号化ファイルをパスフレーズで復号し、全設定を上書きする。
+     * Firebase構成が変わるため、成功時はサインアウト→再初期化のカスケードも適用する。
+     */
+    fun importSettings(uri: Uri, passphrase: String) {
+        viewModelScope.launch {
+            transferState = try {
+                val payload = withContext(Dispatchers.IO) {
+                    val context = getApplication<Application>()
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: throw IllegalStateException("ファイルを開けませんでした")
+                    SettingsTransfer.decrypt(bytes, passphrase.toCharArray())
+                }
+                SettingsTransfer.applyTo(payload, secureSettings)
+                // 画面の入力欄にも反映する
+                xBearerToken = secureSettings.xBearerToken.orEmpty()
+                r2BucketName = secureSettings.r2BucketName.orEmpty()
+                r2AccountId = secureSettings.r2AccountId.orEmpty()
+                r2AccessKeyId = secureSettings.r2AccessKeyId.orEmpty()
+                r2SecretAccessKey = secureSettings.r2SecretAccessKey.orEmpty()
+                r2Endpoint = secureSettings.r2Endpoint.orEmpty()
+                firebaseApiKey = secureSettings.firebaseApiKey.orEmpty()
+                firebaseProjectId = secureSettings.firebaseProjectId.orEmpty()
+                firebaseAppId = secureSettings.firebaseAppId.orEmpty()
+                firebaseWebClientId = secureSettings.firebaseWebClientId.orEmpty()
+                isFirebaseConfigured = secureSettings.isFirebaseConfigured
+                applyFirebaseConfigIfChanged()
+                TransferUiState.Imported
+            } catch (e: Exception) {
+                TransferUiState.Failed(e.message ?: e.javaClass.simpleName)
+            }
+        }
+    }
+
+    fun dismissTransferState() {
+        transferState = TransferUiState.Idle
     }
 }

@@ -1,5 +1,8 @@
 package com.hilamalu.oshixcollector.ui.settings
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
@@ -26,6 +30,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -67,6 +72,67 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
             snackbarHostState.showSnackbar(context.getString(R.string.settings_sign_in_failed, message))
             viewModel.dismissError()
         }
+    }
+
+    // ── 設定の引き継ぎ（機種変更）: パスフレーズ暗号化ファイルのエクスポート/インポート ──
+    // エクスポートは「パスフレーズ入力 → 保存先選択(SAF)」、インポートは「ファイル選択(SAF) → パスフレーズ入力」の順
+    var showExportDialog by remember { mutableStateOf(false) }
+    var pendingExportPassphrase by remember { mutableStateOf("") }
+    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) viewModel.exportSettings(uri, pendingExportPassphrase)
+        pendingExportPassphrase = ""
+    }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) pendingImportUri = uri
+    }
+
+    LaunchedEffect(viewModel.transferState) {
+        when (val state = viewModel.transferState) {
+            TransferUiState.Exported -> {
+                snackbarHostState.showSnackbar(context.getString(R.string.settings_transfer_export_success))
+                viewModel.dismissTransferState()
+            }
+            TransferUiState.Imported -> {
+                snackbarHostState.showSnackbar(context.getString(R.string.settings_transfer_import_success))
+                viewModel.dismissTransferState()
+            }
+            is TransferUiState.Failed -> {
+                snackbarHostState.showSnackbar(context.getString(R.string.settings_transfer_failed, state.message))
+                viewModel.dismissTransferState()
+            }
+            TransferUiState.Idle -> Unit
+        }
+    }
+
+    if (showExportDialog) {
+        PassphraseDialog(
+            titleRes = R.string.settings_transfer_export_dialog_title,
+            messageRes = R.string.settings_transfer_export_dialog_message,
+            requireConfirmation = true,
+            onConfirm = { passphrase ->
+                showExportDialog = false
+                pendingExportPassphrase = passphrase
+                exportLauncher.launch("oshi-x-collector-settings.json")
+            },
+            onDismiss = { showExportDialog = false }
+        )
+    }
+    pendingImportUri?.let { uri ->
+        PassphraseDialog(
+            titleRes = R.string.settings_transfer_import_dialog_title,
+            messageRes = R.string.settings_transfer_import_dialog_message,
+            requireConfirmation = false,
+            onConfirm = { passphrase ->
+                pendingImportUri = null
+                viewModel.importSettings(uri, passphrase)
+            },
+            onDismiss = { pendingImportUri = null }
+        )
     }
 
     // 自動保存はフォーカスが外れた時にしか走らないため、入力欄にフォーカスが残ったまま
@@ -255,8 +321,81 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                     }
                 }
             }
+
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(stringResource(R.string.settings_transfer_section), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.settings_transfer_description))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { showExportDialog = true }) {
+                            Text(stringResource(R.string.settings_transfer_export_button))
+                        }
+                        Button(onClick = { importLauncher.launch(arrayOf("*/*")) }) {
+                            Text(stringResource(R.string.settings_transfer_import_button))
+                        }
+                    }
+                }
+            }
         }
     }
+}
+
+/**
+ * 引き継ぎファイルのパスフレーズ入力ダイアログ。
+ * [requireConfirmation]がtrueの時（エクスポート）は確認欄も表示し、一致するまでOKを無効にする。
+ */
+@Composable
+private fun PassphraseDialog(
+    @StringRes titleRes: Int,
+    @StringRes messageRes: Int,
+    requireConfirmation: Boolean,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var passphrase by remember { mutableStateOf("") }
+    var confirmation by remember { mutableStateOf("") }
+    val canConfirm = passphrase.isNotEmpty() && (!requireConfirmation || passphrase == confirmation)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(titleRes)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(messageRes))
+                OutlinedTextField(
+                    value = passphrase,
+                    onValueChange = { passphrase = it },
+                    label = { Text(stringResource(R.string.settings_transfer_passphrase_label)) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (requireConfirmation) {
+                    OutlinedTextField(
+                        value = confirmation,
+                        onValueChange = { confirmation = it },
+                        label = { Text(stringResource(R.string.settings_transfer_passphrase_confirm_label)) },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(passphrase) }, enabled = canConfirm) {
+                Text(stringResource(R.string.settings_transfer_dialog_ok))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.settings_transfer_dialog_cancel))
+            }
+        }
+    )
 }
 
 /** フォーカスが外れた時に[onSave]で自動保存する設定入力欄。設定画面の全テキスト項目で共通。 */

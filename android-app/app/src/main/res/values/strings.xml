@@ -81,6 +81,21 @@
     <string name="settings_cloud_restore_success">復元完了: アカウント%1$d件、メタデータ%2$d件、画像%3$d件ダウンロード（失敗%4$d件）</string>
     <string name="settings_cloud_restore_failed">復元に失敗しました: %1$s</string>
     <string name="settings_sign_in_failed">サインインに失敗しました: %1$s</string>
+    <string name="settings_transfer_section">設定の引き継ぎ（機種変更）</string>
+    <string name="settings_transfer_description">この画面の全設定（Bearer Token・R2・Firebase）をパスフレーズで暗号化したファイルとして書き出し、新しい端末で取り込めます。ファイルの受け渡しは任意の方法（Google Drive・USBなど）で行ってください。</string>
+    <string name="settings_transfer_export_button">設定をエクスポート</string>
+    <string name="settings_transfer_import_button">設定をインポート</string>
+    <string name="settings_transfer_export_dialog_title">エクスポートの保護</string>
+    <string name="settings_transfer_export_dialog_message">ファイルを暗号化するパスフレーズを決めてください。インポート時に同じパスフレーズが必要です。</string>
+    <string name="settings_transfer_import_dialog_title">パスフレーズを入力</string>
+    <string name="settings_transfer_import_dialog_message">エクスポート時に決めたパスフレーズを入力してください。</string>
+    <string name="settings_transfer_passphrase_label">パスフレーズ</string>
+    <string name="settings_transfer_passphrase_confirm_label">パスフレーズ（確認）</string>
+    <string name="settings_transfer_dialog_ok">OK</string>
+    <string name="settings_transfer_dialog_cancel">キャンセル</string>
+    <string name="settings_transfer_export_success">設定をエクスポートしました</string>
+    <string name="settings_transfer_import_success">設定を取り込みました。クラウドバックアップを使う場合はGoogleで再ログインしてください</string>
+    <string name="settings_transfer_failed">引き継ぎに失敗しました: %1$s</string>
 
     <!-- Usage Screen -->
     <string name="usage_reload">再読み込み</string>
