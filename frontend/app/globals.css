@@ -223,6 +223,11 @@ body {
   color: var(--accent);
 }
 
+.chip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* モバイルはminmax(200px,...)だと1列に潰れて間延びするので、
    immich側の参考実装(4列/6列/8列)に倣って幅ではなく列数で刻む */
 .grid {

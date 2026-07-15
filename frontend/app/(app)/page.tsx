@@ -15,6 +15,8 @@ type MediaItem = {
   screen_name: string | null;
   is_face: boolean | null;
   is_favorite: boolean;
+  liked_on_x: boolean;
+  reposted_on_x: boolean;
 };
 
 type Account = {
@@ -76,6 +78,9 @@ export default function GalleryPage() {
   });
   const [collecting, setCollecting] = useState(false);
   const [revealing, setRevealing] = useState(false);
+  // Xへのいいね/リポスト送信中の種別と、直近の送信エラー（拡大表示のメタ欄に出す）
+  const [xActionBusy, setXActionBusy] = useState<'like' | 'repost' | null>(null);
+  const [xActionError, setXActionError] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // バックフィルはアカウント単位の操作のため、1件だけ絞り込み中のときだけそのアカウントを対象にする
@@ -284,6 +289,41 @@ export default function GalleryPage() {
   const toggleFavorite = (item: MediaItem, isFavorite: boolean) =>
     patchMedia(item, { isFavorite }, { is_favorite: isFavorite });
 
+  // 元ツイートへのいいね/リポスト送信。いいねの重複チェックはサーバー側で行う
+  // （送信済みなら何もせず成功が返る）。成功したら同じツイートの画像すべてに反映する
+  const sendXAction = async (item: MediaItem, action: 'like' | 'repost') => {
+    setXActionBusy(action);
+    setXActionError(null);
+    try {
+      const res = await fetch(`/api/media/${item.media_key}/${action}`, {
+        method: 'POST',
+      }).catch(() => null);
+      if (!res) {
+        setXActionError('ネットワークエラーで送信できませんでした。');
+        return;
+      }
+      if (!res.ok) {
+        const msg = (await res.json().catch(() => null))?.error;
+        setXActionError(msg ?? `送信に失敗しました（${res.status}）`);
+        return;
+      }
+      const patch = action === 'like' ? { liked_on_x: true } : { reposted_on_x: true };
+      setItems((prev) =>
+        prev.map((i) => (i.tweet_id === item.tweet_id ? { ...i, ...patch } : i))
+      );
+      setSelected((prev) =>
+        prev && prev.tweet_id === item.tweet_id ? { ...prev, ...patch } : prev
+      );
+    } finally {
+      setXActionBusy(null);
+    }
+  };
+
+  // 別の画像に切り替えたら前の画像の送信エラー表示を消す
+  useEffect(() => {
+    setXActionError(null);
+  }, [selected?.media_key]);
+
   return (
     <>
       {lastError && !busy && (
@@ -348,7 +388,7 @@ export default function GalleryPage() {
           className={`chip ${favoriteOnly ? 'active' : ''}`}
           onClick={() => setFavoriteOnly((v) => !v)}
         >
-          ❤️ お気に入り
+          🌟 お気に入り
         </button>
       </div>
 
@@ -435,8 +475,33 @@ export default function GalleryPage() {
               onClick={() => toggleFavorite(selected, !selected.is_favorite)}
               aria-label="お気に入り"
             >
-              {selected.is_favorite ? '❤️ お気に入り解除' : '🤍 お気に入りに追加'}
+              {selected.is_favorite ? '🌟 お気に入り解除' : '☆ お気に入りに追加'}
             </button>
+            <button
+              className="chip"
+              onClick={() => sendXAction(selected, 'like')}
+              disabled={xActionBusy !== null || selected.liked_on_x}
+              aria-label="Xでいいね"
+            >
+              {selected.liked_on_x
+                ? '❤️ いいね済み'
+                : xActionBusy === 'like'
+                  ? '🤍 いいねを送信中…'
+                  : '🤍 Xでいいね'}
+            </button>
+            <button
+              className="chip"
+              onClick={() => sendXAction(selected, 'repost')}
+              disabled={xActionBusy !== null}
+              aria-label="Xでリポスト"
+            >
+              {xActionBusy === 'repost'
+                ? '🔁 リポストを送信中…'
+                : selected.reposted_on_x
+                  ? '🔁 リポスト済み'
+                  : '🔁 Xでリポスト'}
+            </button>
+            {xActionError && <span className="banner-error">⚠ {xActionError}</span>}
           </div>
         </div>
       )}

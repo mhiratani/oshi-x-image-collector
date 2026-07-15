@@ -24,10 +24,10 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -498,9 +498,9 @@ private fun LightboxContent(
                     }
                     IconButton(onClick = { onToggleFavorite(current, !current.isFavorite) }) {
                         Icon(
-                            if (current.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            if (current.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
                             contentDescription = stringResource(R.string.media_favorite_toggle),
-                            tint = if (current.isFavorite) Color(0xFFE91E63) else Color.White
+                            tint = if (current.isFavorite) Color(0xFFFFC107) else Color.White
                         )
                     }
                 }

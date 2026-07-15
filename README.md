@@ -77,7 +77,24 @@ firebase deploy --only firestore:indexes --project <FIREBASE_PROJECT_ID>
 
 コレクション構成・インデックス一覧の詳細は `docs/web-firestore-migration-design.md` を参照。
 
-### 4. 起動
+### 4. いいね・リポスト送信の設定（任意）
+
+拡大表示の「🤍 Xでいいね」「🔁 Xでリポスト」ボタンで、画像の元ツイートへ自分のアカウントとして
+いいね・リポストを送れる。`X_BEARER_TOKEN`（アプリ認証・読み取り専用）では書き込みできないため、
+別途OAuth 1.0aのユーザー認証情報が必要（`frontend/lib/xWrite.ts`）。
+
+1. [開発者ポータル](https://developer.x.com/)のApp → **Settings** → User authentication settings で
+   App permissions を **Read and write** にする
+2. **Keys and tokens** で API Key and Secret を確認し、Access Token and Secret を(再)生成する
+   （権限変更前に発行したトークンはRead onlyのままなので再生成が必要）
+3. `.env` の `X_API_KEY` / `X_API_SECRET` / `X_ACCESS_TOKEN` / `X_ACCESS_TOKEN_SECRET` に転記する
+
+未設定でも収集・閲覧には影響しない（送信ボタンを押したときにエラーメッセージが出るだけ）。
+いいねはトグル操作のため、送信済みの画像（Firestoreの`liked_on_x`）には再送しない。
+リポストは投げっぱなし（X側で解除した後の再リポストを許すため、送信済みでも再送できる）。
+手元の🌟お気に入り（`is_favorite`）とは独立して管理される。
+
+### 5. 起動
 
 ```
 docker compose up -d --build

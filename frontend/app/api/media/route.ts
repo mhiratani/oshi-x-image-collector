@@ -44,6 +44,8 @@ export async function GET(req: NextRequest) {
     posted_at: m.posted_at,
     is_face: m.is_face,
     is_favorite: m.is_favorite,
+    liked_on_x: m.liked_on_x,
+    reposted_on_x: m.reposted_on_x,
     screen_name: screenNameByXUserId.get(m.x_user_id) ?? null,
   }));
 

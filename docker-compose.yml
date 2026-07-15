@@ -17,6 +17,11 @@ services:
       FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:?FIREBASE_CLIENT_EMAIL を .env に設定してください}
       FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:?FIREBASE_PRIVATE_KEY を .env に設定してください}
       X_BEARER_TOKEN: ${X_BEARER_TOKEN:?X_BEARER_TOKEN を .env に設定してください}
+      # いいね・リポスト送信用のOAuth 1.0aユーザー認証情報（任意。未設定なら送信機能のみ無効）
+      X_API_KEY: ${X_API_KEY:-}
+      X_API_SECRET: ${X_API_SECRET:-}
+      X_ACCESS_TOKEN: ${X_ACCESS_TOKEN:-}
+      X_ACCESS_TOKEN_SECRET: ${X_ACCESS_TOKEN_SECRET:-}
       # バッチ実行スケジュール（cron形式、デフォルト: 60分ごとの新着チェック）
       CRON_SCHEDULE: "*/60 * * * *"
       # コンテナ起動直後に1回バッチを実行するか
