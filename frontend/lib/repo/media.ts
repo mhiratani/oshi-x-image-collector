@@ -17,8 +17,6 @@ export type MediaRow = {
   is_face: boolean | null;
   face_confidence: number | null;
   is_favorite: boolean;
-  liked_on_x: boolean;
-  reposted_on_x: boolean;
   backup_attempts: number;
   revealed: boolean;
 };
@@ -35,8 +33,6 @@ function fromDoc(doc: FirebaseFirestore.QueryDocumentSnapshot): MediaRow {
     is_face: data.is_face ?? null,
     face_confidence: data.face_confidence ?? null,
     is_favorite: data.is_favorite ?? false,
-    liked_on_x: data.liked_on_x ?? false,
-    reposted_on_x: data.reposted_on_x ?? false,
     backup_attempts: data.backup_attempts ?? 0,
     revealed: data.revealed,
   };
@@ -70,8 +66,6 @@ export async function insertMediaBatch(
         face_confidence: null,
         face_reviewed: false,
         is_favorite: false,
-        liked_on_x: false,
-        reposted_on_x: false,
         revealed,
         created_at: FieldValue.serverTimestamp(),
       });
@@ -124,16 +118,6 @@ export async function updateFace(uid: string, mediaKey: string, isFace: boolean)
 
 export async function updateFavorite(uid: string, mediaKey: string, isFavorite: boolean): Promise<void> {
   await col(uid).doc(mediaKey).update({ is_favorite: isFavorite });
-}
-
-// いいね・リポストはツイート単位の操作のため、同じ tweet_id を持つ全画像へまとめて記録する
-// （1ツイート複数画像の場合、どの画像から操作しても表示が揃うようにする）
-export async function markTweetLiked(uid: string, tweetId: string): Promise<void> {
-  await updateQueryInBatches(col(uid).where('tweet_id', '==', tweetId), { liked_on_x: true });
-}
-
-export async function markTweetReposted(uid: string, tweetId: string): Promise<void> {
-  await updateQueryInBatches(col(uid).where('tweet_id', '==', tweetId), { reposted_on_x: true });
 }
 
 export async function countForXUserId(uid: string, xUserId: string): Promise<number> {
