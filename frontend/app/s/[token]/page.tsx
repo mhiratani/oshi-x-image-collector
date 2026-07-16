@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import IdolImage from '@/components/IdolImage';
 import { useLightboxSwipe } from '@/lib/useLightboxSwipe';
-import { useLightboxHistoryBack } from '@/lib/useLightboxHistoryBack';
+import { useHistoryBackClose } from '@/lib/useHistoryBackClose';
 
 type MediaItem = {
   media_key: string;
@@ -90,7 +90,9 @@ export default function SharedGalleryPage() {
     loadMore,
   });
   // 拡大表示中は「戻る」でページごと戻さず、拡大表示を閉じるだけにする
-  useLightboxHistoryBack(selected !== null, () => setSelected(null));
+  useHistoryBackClose('lightbox', selected !== null, () => setSelected(null));
+  // フィルター中は「戻る」でページごと戻さず、フィルターをリセットするだけにする
+  useHistoryBackClose('filters', faceOnly, () => setFaceOnly(false));
 
   if (invalid) {
     return <p className="status">このリンクは無効です（発行者によって取り消されたか、存在しません）</p>;

@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -109,6 +110,12 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
             viewModel.dismissSyncMessage()
         }
     }
+
+    // フィルター中は「戻る」でアプリを閉じず、フィルターをリセットするだけにする（Web版と同じ挙動）。
+    // 拡大表示（Dialog）や絞り込みシート（ModalBottomSheet）は自前で「戻る」を処理して閉じるため、
+    // このハンドラが反応するのはそれらが表示されていないときだけ
+    val filtersActive = selectedAccountId != null || isFaceOnly || isFavoritesOnly
+    BackHandler(enabled = filtersActive) { viewModel.clearFilters() }
 
     Scaffold(
         topBar = {

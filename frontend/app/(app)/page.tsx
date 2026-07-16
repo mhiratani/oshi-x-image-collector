@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import IdolImage from '@/components/IdolImage';
 import { useLightboxSwipe } from '@/lib/useLightboxSwipe';
-import { useLightboxHistoryBack } from '@/lib/useLightboxHistoryBack';
+import { useHistoryBackClose } from '@/lib/useHistoryBackClose';
 
 type MediaItem = {
   media_key: string;
@@ -253,7 +253,14 @@ export default function GalleryPage() {
     loadMore,
   });
   // 拡大表示中は「戻る」でページごと戻さず、拡大表示を閉じるだけにする
-  useLightboxHistoryBack(selected !== null, () => setSelected(null));
+  useHistoryBackClose('lightbox', selected !== null, () => setSelected(null));
+  // フィルター中は「戻る」でページごと戻さず、フィルターをリセットするだけにする
+  const filtersActive = filter.length > 0 || faceOnly || favoriteOnly;
+  useHistoryBackClose('filters', filtersActive, () => {
+    setFilter([]);
+    setFaceOnly(false);
+    setFavoriteOnly(false);
+  });
 
   const lastError = collectStatus.lastError ?? backfill.lastError;
   const busy = backfilling || backfill.running || collecting || collectStatus.running || revealing;
