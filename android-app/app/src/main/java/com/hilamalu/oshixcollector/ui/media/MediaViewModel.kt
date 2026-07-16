@@ -249,6 +249,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         accountFilter.value = xUserId
     }
 
+    /** 端末の「戻る」操作からの一括解除。全フィルターを未適用状態に戻す。 */
+    fun clearFilters() {
+        accountFilter.value = null
+        faceOnly.value = false
+        favoritesOnly.value = false
+    }
+
     fun dismissError() {
         errorMessage = null
     }
