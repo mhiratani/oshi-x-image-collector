@@ -1,5 +1,9 @@
 package com.hilamalu.oshixcollector.ui.media
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -24,10 +28,10 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -59,7 +63,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
@@ -391,7 +395,7 @@ private fun MediaLightbox(
     onToggleFavorite: (MediaAssetEntity, Boolean) -> Unit,
     onClose: () -> Unit
 ) {
-    val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
     val pagerState = rememberPagerState(initialPage = initialIndex, pageCount = { media.size })
 
     LaunchedEffect(pagerState.currentPage) {
@@ -408,7 +412,7 @@ private fun MediaLightbox(
             media = media,
             pagerState = pagerState,
             screenNames = screenNames,
-            uriHandler = uriHandler,
+            onOpenTweet = { tweetId -> openTweet(context, tweetId) },
             onOverrideFace = onOverrideFace,
             onToggleFavorite = onToggleFavorite,
             onClose = onClose
@@ -421,7 +425,7 @@ private fun LightboxContent(
     media: List<MediaAssetEntity>,
     pagerState: androidx.compose.foundation.pager.PagerState,
     screenNames: Map<String, String>,
-    uriHandler: androidx.compose.ui.platform.UriHandler,
+    onOpenTweet: (String) -> Unit,
     onOverrideFace: (MediaAssetEntity, Boolean) -> Unit,
     onToggleFavorite: (MediaAssetEntity, Boolean) -> Unit,
     onClose: () -> Unit
@@ -492,15 +496,15 @@ private fun LightboxContent(
                         )
                     }
                     OutlinedButton(
-                        onClick = { uriHandler.openUri("https://x.com/i/web/status/${current.tweetId}") }
+                        onClick = { onOpenTweet(current.tweetId) }
                     ) {
                         Text(stringResource(R.string.media_open_tweet))
                     }
                     IconButton(onClick = { onToggleFavorite(current, !current.isFavorite) }) {
                         Icon(
-                            if (current.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            if (current.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
                             contentDescription = stringResource(R.string.media_favorite_toggle),
-                            tint = if (current.isFavorite) Color(0xFFE91E63) else Color.White
+                            tint = if (current.isFavorite) Color(0xFFFFC107) else Color.White
                         )
                     }
                 }
@@ -512,3 +516,18 @@ private fun LightboxContent(
 private fun formatPostedAt(epochMillis: Long): String =
     DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM, Locale.JAPAN)
         .format(Date(epochMillis))
+
+// 元ポストをX公式アプリで開く。https://x.com/... を直接投げるとOSの設定次第で
+// ブラウザが選ばれてしまうことがあるため、まずアプリ専用スキーム（twitter://）を試し、
+// X公式アプリが未インストールならブラウザ（https）へフォールバックする
+private fun openTweet(context: Context, tweetId: String) {
+    try {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, Uri.parse("twitter://status?id=$tweetId"))
+        )
+    } catch (_: ActivityNotFoundException) {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, Uri.parse("https://x.com/i/web/status/$tweetId"))
+        )
+    }
+}

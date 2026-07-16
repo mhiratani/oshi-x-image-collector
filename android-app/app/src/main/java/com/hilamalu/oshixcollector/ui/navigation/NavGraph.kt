@@ -12,7 +12,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -54,14 +53,17 @@ fun OshiXImageCollectorNavGraph(navController: NavHostController = rememberNavCo
                         NavigationBarItem(
                             selected = currentRoute == destination.route,
                             onClick = {
-                                navController.navigate(destination.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
+                                // 表示中の画面と同じタブの連打では何もしない（無駄な再ナビゲーションを防ぐ）
+                                if (currentRoute != destination.route) {
+                                    navController.navigate(destination.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
                                 }
                             },
-                            icon = { Icon(destination.icon, contentDescription = null) },
-                            label = { Text(stringResource(destination.labelRes)) }
+                            // ラベルは表示せず、TalkBack向けの読み上げ文字列としてだけ使う
+                            icon = { Icon(destination.icon, contentDescription = stringResource(destination.labelRes)) }
                         )
                     }
                 }

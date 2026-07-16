@@ -348,7 +348,7 @@ export default function GalleryPage() {
           className={`chip ${favoriteOnly ? 'active' : ''}`}
           onClick={() => setFavoriteOnly((v) => !v)}
         >
-          ❤️ お気に入り
+          🌟 お気に入り
         </button>
       </div>
 
@@ -435,7 +435,7 @@ export default function GalleryPage() {
               onClick={() => toggleFavorite(selected, !selected.is_favorite)}
               aria-label="お気に入り"
             >
-              {selected.is_favorite ? '❤️ お気に入り解除' : '🤍 お気に入りに追加'}
+              {selected.is_favorite ? '🌟 お気に入り解除' : '☆ お気に入りに追加'}
             </button>
           </div>
         </div>
