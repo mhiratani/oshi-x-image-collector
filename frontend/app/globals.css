@@ -296,6 +296,18 @@ body {
   justify-content: center;
   z-index: 100;
   padding: 24px;
+  /* ブラウザ既定のピンチズーム/スクロールを止め、useLightboxZoomの自前ズームに任せる */
+  touch-action: none;
+}
+
+/* ピンチズームの変形（useLightboxZoom）を画像だけに適用するためのラッパー */
+.lightbox .zoomable {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  transform-origin: center center;
+  will-change: transform;
 }
 
 .lightbox img {

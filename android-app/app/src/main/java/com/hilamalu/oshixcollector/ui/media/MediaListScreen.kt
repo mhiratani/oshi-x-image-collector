@@ -7,6 +7,11 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,6 +59,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -62,12 +68,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -448,18 +459,20 @@ private fun LightboxContent(
                 onClick = onClose
             )
     ) {
-        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+        // ピンチズーム中はページ送り（横スワイプ）を止め、1本指ドラッグを表示位置の移動に充てる
+        var zoomed by remember { mutableStateOf(false) }
+        LaunchedEffect(pagerState.currentPage) { zoomed = false }
+
+        HorizontalPager(
+            state = pagerState,
+            userScrollEnabled = !zoomed,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
             val asset = media[page]
-            SubcomposeAsyncImage(
+            ZoomableLightboxImage(
                 model = asset.localImagePath ?: asset.xCdnUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize(),
-                loading = {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Color.White)
-                    }
-                }
+                isCurrentPage = pagerState.currentPage == page,
+                onZoomedChanged = { zoomed = it }
             )
         }
 
@@ -517,6 +530,94 @@ private fun LightboxContent(
                 }
             }
         }
+    }
+}
+
+/** ライトボックスのピンチズームの最大倍率（Web版useLightboxZoomのMAX_SCALEと合わせる）。 */
+private const val MAX_LIGHTBOX_SCALE = 5f
+
+/**
+ * ライトボックス内の1ページ分の画像。ピンチイン/アウトで拡大縮小し、拡大中は1本指ドラッグで
+ * 表示位置を移動できる。未ズームの1本指操作は消費せず、ページ送り（HorizontalPager）と
+ * タップで閉じる操作にそのまま渡す。拡大中はタップやドラッグをここで消費し、誤って
+ * 閉じたりページが送られたりしないようにする（呼び出し側はonZoomedChangedでページ送りを
+ * 無効化する）。
+ */
+@Composable
+private fun ZoomableLightboxImage(
+    model: Any?,
+    isCurrentPage: Boolean,
+    onZoomedChanged: (Boolean) -> Unit
+) {
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var containerSize by remember { mutableStateOf(IntSize.Zero) }
+
+    // 拡大した画像の端が表示枠の内側に入り込まない範囲に移動量を収める（等倍では常に中央）
+    fun clampOffset(candidate: Offset, forScale: Float): Offset {
+        val maxX = (forScale - 1f) * containerSize.width / 2f
+        val maxY = (forScale - 1f) * containerSize.height / 2f
+        return Offset(candidate.x.coerceIn(-maxX, maxX), candidate.y.coerceIn(-maxY, maxY))
+    }
+
+    // 別のページへ送られたらズームを解除し、戻ってきた時は等倍から始める
+    LaunchedEffect(isCurrentPage) {
+        if (!isCurrentPage) {
+            scale = 1f
+            offset = Offset.Zero
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { containerSize = it }
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        val multiTouch = event.changes.size > 1
+                        if (multiTouch || scale > 1f) {
+                            val zoomChange = event.calculateZoom()
+                            val panChange = event.calculatePan()
+                            if (zoomChange != 1f) {
+                                val newScale = (scale * zoomChange).coerceIn(1f, MAX_LIGHTBOX_SCALE)
+                                // ピンチ中心直下の画像上の点が指の下に留まるようオフセットも合わせて動かす
+                                val center = Offset(containerSize.width / 2f, containerSize.height / 2f)
+                                val centroid = event.calculateCentroid()
+                                val contentPoint = (centroid - center - offset) / scale
+                                offset = clampOffset(centroid - center - contentPoint * newScale + panChange, newScale)
+                                scale = newScale
+                            } else {
+                                offset = clampOffset(offset + panChange, scale)
+                            }
+                            if (scale <= 1f) offset = Offset.Zero
+                            onZoomedChanged(scale > 1f)
+                            event.changes.forEach { it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                }
+            }
+    ) {
+        SubcomposeAsyncImage(
+            model = model,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = offset.x
+                    translationY = offset.y
+                },
+            loading = {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color.White)
+                }
+            }
+        )
     }
 }
 
