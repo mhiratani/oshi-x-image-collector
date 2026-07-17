@@ -144,14 +144,21 @@ export default function SharedGalleryPage() {
             size="orig"
           />
           <div className="meta" onClick={(e) => e.stopPropagation()}>
-            <span>{new Date(selected.posted_at).toLocaleString('ja-JP')}</span>
-            <a
-              href={`https://x.com/i/web/status/${selected.tweet_id}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              元ツイートを開く ↗
-            </a>
+            <div className="meta-info">
+              <span>{new Date(selected.posted_at).toLocaleString('ja-JP')}</span>
+            </div>
+            <div className="meta-actions">
+              <a
+                className="chip icon-btn"
+                href={`https://x.com/i/web/status/${selected.tweet_id}`}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="元ツイートを開く"
+                title="元ツイートを開く"
+              >
+                𝕏↗
+              </a>
+            </div>
           </div>
         </div>
       )}

@@ -321,15 +321,52 @@ body {
 }
 
 .lightbox .meta {
-  margin-top: 12px;
+  margin-top: 14px;
+  width: 100%;
+  max-width: 480px;
   display: flex;
-  gap: 16px;
+  flex-direction: column;
   align-items: center;
+  gap: 10px;
   color: var(--muted);
   font-size: 14px;
+  text-align: center;
 }
 
-.lightbox .meta a {
+.lightbox .meta-info {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+}
+
+.lightbox .meta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Androidアプリのアイコン丸ボタンに合わせたスタイル（元ツイートを開く / お気に入り）。
+   .chipの見た目（枠線・背景・ホバー）を流用し、形とサイズだけ上書きする */
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.icon-btn:hover {
+  border-color: var(--accent);
   color: var(--accent);
 }
 
@@ -419,6 +456,19 @@ table.data-table th {
   table.accounts th:nth-child(4),
   table.accounts td:nth-child(4) {
     display: none;
+  }
+
+  /* ライトボックスのボタン行が画面に収まりきるよう、画像を少し縮めて余白を確保 */
+  .lightbox {
+    padding: 12px;
+  }
+
+  .lightbox img {
+    max-height: 64vh;
+  }
+
+  .lightbox .meta {
+    font-size: 13px;
   }
 }
 

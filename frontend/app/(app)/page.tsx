@@ -422,28 +422,37 @@ export default function GalleryPage() {
             size="orig"
           />
           <div className="meta" onClick={(e) => e.stopPropagation()}>
-            <span>@{selected.screen_name}</span>
-            <span>{new Date(selected.posted_at).toLocaleString('ja-JP')}</span>
-            <a
-              href={`https://x.com/i/web/status/${selected.tweet_id}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              元ツイートを開く ↗
-            </a>
-            <button
-              className="chip"
-              onClick={() => toggleFace(selected, !selected.is_face)}
-            >
-              {selected.is_face ? '🙅 顔画像ではない、に変更' : '🙂 顔画像として扱う、に変更'}
-            </button>
-            <button
-              className="chip"
-              onClick={() => toggleFavorite(selected, !selected.is_favorite)}
-              aria-label="お気に入り"
-            >
-              {selected.is_favorite ? '🌟 お気に入り解除' : '☆ お気に入りに追加'}
-            </button>
+            <div className="meta-info">
+              <span>@{selected.screen_name}</span>
+              <span>{new Date(selected.posted_at).toLocaleString('ja-JP')}</span>
+            </div>
+            <div className="meta-actions">
+              <button
+                className="chip"
+                onClick={() => toggleFace(selected, !selected.is_face)}
+              >
+                {selected.is_face ? '🙅 顔画像ではない、に変更' : '🙂 顔画像として扱う、に変更'}
+              </button>
+              <a
+                className="chip icon-btn"
+                href={`https://x.com/i/web/status/${selected.tweet_id}`}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="元ツイートを開く"
+                title="元ツイートを開く"
+              >
+                𝕏↗
+              </a>
+              <button
+                className="chip icon-btn"
+                onClick={() => toggleFavorite(selected, !selected.is_favorite)}
+                aria-label={selected.is_favorite ? 'お気に入り解除' : 'お気に入りに追加'}
+                aria-pressed={selected.is_favorite}
+                title={selected.is_favorite ? 'お気に入り解除' : 'お気に入りに追加'}
+              >
+                {selected.is_favorite ? '🌟' : '☆'}
+              </button>
+            </div>
           </div>
         </div>
       )}
