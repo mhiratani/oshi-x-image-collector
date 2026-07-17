@@ -8,6 +8,11 @@ const IDENTITY: Transform = { scale: 1, tx: 0, ty: 0 };
 const MAX_SCALE = 5;
 // 指を離した時にこれ以下なら等倍へスナップする（ピンチイン終わりの微妙なズレを吸収）
 const SNAP_SCALE = 1.05;
+// ダブルタップ判定: 1タップの押下時間と2タップの間隔の上限、タップとみなす指の移動量と
+// 2タップ間の位置ズレの上限
+const DOUBLE_TAP_MS = 300;
+const TAP_SLOP_PX = 12;
+const DOUBLE_TAP_SLOP_PX = 50;
 
 type Gesture = {
   mode: 'pinch' | 'pan';
@@ -29,7 +34,8 @@ type Gesture = {
 };
 
 // 拡大表示（ライトボックス）中のピンチイン/アウトによるズームと、ズーム中の1本指ドラッグでの
-// 表示位置移動。CSSの .lightbox { touch-action: none } と組み合わせて使う（ブラウザ既定の
+// 表示位置移動、ズーム中のダブルタップによる等倍への復帰。
+// CSSの .lightbox { touch-action: none } と組み合わせて使う（ブラウザ既定の
 // ページ全体ズームを止め、画像だけを変形させるため）。
 // スワイプ送り（useLightboxSwipe）とは独立しており、呼び出し側でズーム中はスワイプ送りと
 // タップで閉じる処理をスキップする。
@@ -43,11 +49,17 @@ export function useLightboxZoom(resetKey: string | null) {
   // 最後にズーム/パン操作をした時刻。ジェスチャー直後の合成clickだけを抑止するために使う
   // （フラグ方式だと合成clickを発火しないブラウザでフラグが残り、次の正当なタップを潰してしまう）
   const gesturedAt = useRef(0);
+  // ズーム中のダブルタップで等倍に戻すためのタップ追跡。tapは現在の1本指タッチが
+  // タップのままか（動きすぎたら無効化）、lastTapは直前に成立したタップの位置と離した時刻
+  const tap = useRef<{ x: number; y: number; startedAt: number; valid: boolean } | null>(null);
+  const lastTap = useRef<{ x: number; y: number; endedAt: number } | null>(null);
 
   // 表示画像が切り替わったらズームをリセットする
   useEffect(() => {
     setTransform(IDENTITY);
     gesture.current = null;
+    tap.current = null;
+    lastTap.current = null;
   }, [resetKey]);
 
   const clamp = (v: number, max: number) => Math.min(max, Math.max(-max, v));
@@ -112,6 +124,14 @@ export function useLightboxZoom(resetKey: string | null) {
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      tap.current = { x: t.clientX, y: t.clientY, startedAt: Date.now(), valid: true };
+    } else {
+      // 2本目の指が付いたらタップ扱いをやめ、ダブルタップの連鎖も切る
+      tap.current = null;
+      lastTap.current = null;
+    }
     if (e.touches.length === 2) {
       startPinch(e.touches[0], e.touches[1]);
     } else if (e.touches.length === 1 && transformRef.current.scale > 1) {
@@ -122,6 +142,11 @@ export function useLightboxZoom(resetKey: string | null) {
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
+    const c = tap.current;
+    if (c && e.touches.length === 1) {
+      const t = e.touches[0];
+      if (Math.hypot(t.clientX - c.x, t.clientY - c.y) > TAP_SLOP_PX) c.valid = false;
+    }
     const g = gesture.current;
     if (!g) return;
     if (g.mode === 'pinch' && e.touches.length >= 2) {
@@ -158,9 +183,31 @@ export function useLightboxZoom(resetKey: string | null) {
     }
   };
 
+  // 最後の指が離れた時点でタップ成立を判定し、ズーム中のダブルタップなら等倍へ戻す
+  const handleTapEnd = () => {
+    const c = tap.current;
+    tap.current = null;
+    const now = Date.now();
+    if (!c || !c.valid || now - c.startedAt > DOUBLE_TAP_MS) return;
+    const prev = lastTap.current;
+    lastTap.current = { x: c.x, y: c.y, endedAt: now };
+    if (
+      prev &&
+      now - prev.endedAt < DOUBLE_TAP_MS &&
+      Math.hypot(c.x - prev.x, c.y - prev.y) < DOUBLE_TAP_SLOP_PX &&
+      transformRef.current.scale > 1
+    ) {
+      setTransform(IDENTITY);
+      lastTap.current = null;
+      // リセット直後の合成clickでライトボックスが閉じないようにジェスチャー扱いにする
+      gesturedAt.current = now;
+    }
+  };
+
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (e.touches.length === 0) {
       gesture.current = null;
+      handleTapEnd();
       // ほぼ等倍まで戻していたら完全にリセットする
       if (transformRef.current.scale < SNAP_SCALE) setTransform(IDENTITY);
     } else if (e.touches.length === 1) {
