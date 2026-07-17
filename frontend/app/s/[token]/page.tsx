@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import IdolImage from '@/components/IdolImage';
 import { useLightboxSwipe } from '@/lib/useLightboxSwipe';
+import { useLightboxZoom } from '@/lib/useLightboxZoom';
 import { useHistoryBackClose } from '@/lib/useHistoryBackClose';
 
 type MediaItem = {
@@ -89,6 +90,8 @@ export default function SharedGalleryPage() {
     loading,
     loadMore,
   });
+  // 拡大表示中のピンチイン/アウトによるズームと、ズーム中のドラッグでの表示位置移動
+  const zoom = useLightboxZoom(selected?.media_key ?? null);
   // 拡大表示中は「戻る」でページごと戻さず、拡大表示を閉じるだけにする
   useHistoryBackClose('lightbox', selected !== null, () => setSelected(null));
   // フィルター中は「戻る」でページごと戻さず、フィルターをリセットするだけにする
@@ -132,17 +135,21 @@ export default function SharedGalleryPage() {
       {selected && (
         <div
           className="lightbox"
-          onClick={() => { if (!wasSwipe()) setSelected(null); }}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
+          // ズーム中はタップ（合成click含む）で閉じない。等倍に戻してから閉じる
+          onClick={() => { if (!wasSwipe() && !zoom.wasGesture() && !zoom.isZoomedNow()) setSelected(null); }}
+          onTouchStart={(e) => { zoom.handleTouchStart(e); handleTouchStart(e); }}
+          onTouchMove={zoom.handleTouchMove}
+          onTouchEnd={(e) => { zoom.handleTouchEnd(e); if (!zoom.isZoomedNow()) handleTouchEnd(e); }}
         >
-          <IdolImage
-            key={selected.media_key}
-            xCdnUrl={selected.x_cdn_url}
-            r2BackupUrl={selected.r2_backup_url}
-            altText="拡大画像"
-            size="orig"
-          />
+          <div className="zoomable" ref={zoom.targetRef} style={zoom.style}>
+            <IdolImage
+              key={selected.media_key}
+              xCdnUrl={selected.x_cdn_url}
+              r2BackupUrl={selected.r2_backup_url}
+              altText="拡大画像"
+              size="orig"
+            />
+          </div>
           <div className="meta" onClick={(e) => e.stopPropagation()}>
             <div className="meta-info">
               <span>{new Date(selected.posted_at).toLocaleString('ja-JP')}</span>
