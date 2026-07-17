@@ -538,10 +538,10 @@ private const val MAX_LIGHTBOX_SCALE = 5f
 
 /**
  * ライトボックス内の1ページ分の画像。ピンチイン/アウトで拡大縮小し、拡大中は1本指ドラッグで
- * 表示位置を移動できる。未ズームの1本指操作は消費せず、ページ送り（HorizontalPager）と
- * タップで閉じる操作にそのまま渡す。拡大中はタップやドラッグをここで消費し、誤って
- * 閉じたりページが送られたりしないようにする（呼び出し側はonZoomedChangedでページ送りを
- * 無効化する）。
+ * 表示位置を移動、ダブルタップで等倍に戻せる。未ズームの1本指操作は消費せず、
+ * ページ送り（HorizontalPager）とタップで閉じる操作にそのまま渡す。拡大中はタップや
+ * ドラッグをここで消費し、誤って閉じたりページが送られたりしないようにする
+ * （呼び出し側はonZoomedChangedでページ送りを無効化する）。
  */
 @Composable
 private fun ZoomableLightboxImage(
@@ -573,11 +573,24 @@ private fun ZoomableLightboxImage(
             .fillMaxSize()
             .onSizeChanged { containerSize = it }
             .pointerInput(Unit) {
+                // ズーム中のダブルタップ（等倍に戻す）判定用。直前に成立したタップの離した時刻
+                var lastTapUpAt = 0L
                 awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    // 未ズームの1本指タップはここで消費せず「タップで閉じる」に渡すため、
+                    // ダブルタップとして追うのはズーム中に始まったタップだけ
+                    var isTap = scale > 1f
+                    var lastUptime = down.uptimeMillis
                     do {
                         val event = awaitPointerEvent()
                         val multiTouch = event.changes.size > 1
+                        if (multiTouch) isTap = false
+                        event.changes.firstOrNull()?.let { change ->
+                            lastUptime = change.uptimeMillis
+                            if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) {
+                                isTap = false
+                            }
+                        }
                         if (multiTouch || scale > 1f) {
                             val zoomChange = event.calculateZoom()
                             val panChange = event.calculatePan()
@@ -597,6 +610,20 @@ private fun ZoomableLightboxImage(
                             event.changes.forEach { it.consume() }
                         }
                     } while (event.changes.any { it.pressed })
+                    if (isTap && lastUptime - down.uptimeMillis < viewConfiguration.longPressTimeoutMillis) {
+                        // 間隔は「1タップ目を離してから2タップ目を押すまで」で測る
+                        if (down.uptimeMillis - lastTapUpAt < viewConfiguration.doubleTapTimeoutMillis && scale > 1f) {
+                            // ズーム中のダブルタップは等倍に戻す
+                            scale = 1f
+                            offset = Offset.Zero
+                            onZoomedChanged(false)
+                            lastTapUpAt = 0L
+                        } else {
+                            lastTapUpAt = lastUptime
+                        }
+                    } else {
+                        lastTapUpAt = 0L
+                    }
                 }
             }
     ) {
