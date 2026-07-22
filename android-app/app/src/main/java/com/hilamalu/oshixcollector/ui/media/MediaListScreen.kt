@@ -653,16 +653,36 @@ private fun formatPostedAt(epochMillis: Long): String =
         .format(Date(epochMillis))
 
 // 元ポストをX公式アプリで開く。https://x.com/... を直接投げるとOSの設定次第で
-// ブラウザが選ばれてしまうことがあるため、まずアプリ専用スキーム（twitter://）を試し、
-// X公式アプリが未インストールならブラウザ（https）へフォールバックする
+// ブラウザが選ばれてしまうため、次の順で試す:
+//   1. twitter:// スキーム（対応バージョンのXアプリなら直接起動）
+//   2. https を X公式アプリ(com.twitter.android)に名指しで渡す
+//      （新しいXアプリは旧 twitter:// スキームを落としていることがあるため）
+//   3. どちらもダメならブラウザで https を開く（Xアプリ未インストール時など）
+// 2・3で使う https はユーザー名不要の正規形 /i/status/<id>（App Link 対象）にする。
+// /i/web/status/ はWeb専用リダイレクトでXアプリが受け取らないため使わない。
+private const val X_APP_PACKAGE = "com.twitter.android"
+
 private fun openTweet(context: Context, tweetId: String) {
+    val webUri = Uri.parse("https://x.com/i/status/$tweetId")
+
+    // 1. Xアプリのディープリンクスキーム
+    val schemeIntent = Intent(Intent.ACTION_VIEW, Uri.parse("twitter://status?id=$tweetId"))
+    if (schemeIntent.resolveActivity(context.packageManager) != null) {
+        context.startActivity(schemeIntent)
+        return
+    }
+
+    // 2. https を Xアプリに名指しで渡す
+    val appWebIntent = Intent(Intent.ACTION_VIEW, webUri).setPackage(X_APP_PACKAGE)
+    if (appWebIntent.resolveActivity(context.packageManager) != null) {
+        context.startActivity(appWebIntent)
+        return
+    }
+
+    // 3. ブラウザへフォールバック
     try {
-        context.startActivity(
-            Intent(Intent.ACTION_VIEW, Uri.parse("twitter://status?id=$tweetId"))
-        )
+        context.startActivity(Intent(Intent.ACTION_VIEW, webUri))
     } catch (_: ActivityNotFoundException) {
-        context.startActivity(
-            Intent(Intent.ACTION_VIEW, Uri.parse("https://x.com/i/web/status/$tweetId"))
-        )
+        // 開けるアプリが一切無い端末では何もしない
     }
 }
