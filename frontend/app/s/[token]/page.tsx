@@ -157,7 +157,7 @@ export default function SharedGalleryPage() {
             <div className="meta-actions">
               <a
                 className="chip icon-btn"
-                href={`https://x.com/i/web/status/${selected.tweet_id}`}
+                href={`https://x.com/i/status/${selected.tweet_id}`}
                 target="_blank"
                 rel="noreferrer"
                 aria-label="元ツイートを開く"
