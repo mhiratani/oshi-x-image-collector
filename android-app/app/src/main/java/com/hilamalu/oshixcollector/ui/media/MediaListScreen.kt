@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -12,6 +14,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -89,6 +92,7 @@ import com.hilamalu.oshixcollector.data.db.MediaAssetEntity
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -472,6 +476,7 @@ private fun LightboxContent(
             ZoomableLightboxImage(
                 model = asset.localImagePath ?: asset.xCdnUrl,
                 isCurrentPage = pagerState.currentPage == page,
+                onTap = onClose,
                 onZoomedChanged = { zoomed = it }
             )
         }
@@ -536,22 +541,35 @@ private fun LightboxContent(
 /** ライトボックスのピンチズームの最大倍率（Web版useLightboxZoomのMAX_SCALEと合わせる）。 */
 private const val MAX_LIGHTBOX_SCALE = 5f
 
+/** 等倍からのダブルタップで拡大する倍率（Web版useLightboxZoomのDOUBLE_TAP_SCALEと合わせる）。 */
+private const val DOUBLE_TAP_SCALE = 2f
+
+/** ダブルタップ拡大/等倍復帰のアニメーション時間（ミリ秒）。 */
+private const val DOUBLE_TAP_ANIM_MS = 200
+
 /**
  * ライトボックス内の1ページ分の画像。ピンチイン/アウトで拡大縮小し、拡大中は1本指ドラッグで
- * 表示位置を移動、ダブルタップで等倍に戻せる。未ズームの1本指操作は消費せず、
- * ページ送り（HorizontalPager）とタップで閉じる操作にそのまま渡す。拡大中はタップや
- * ドラッグをここで消費し、誤って閉じたりページが送られたりしないようにする
- * （呼び出し側はonZoomedChangedでページ送りを無効化する）。
+ * 表示位置を移動、ダブルタップで拡大（等倍時）または等倍への復帰（拡大中）ができる。
+ * 未ズームの1本指ドラッグは消費せずページ送り（HorizontalPager）に渡し、拡大中はここで
+ * 消費して誤ってページが送られないようにする（呼び出し側はonZoomedChangedでページ送りを無効化）。
+ *
+ * 単発タップ（onTap = 拡大表示を閉じる）はdetectTapGesturesに任せる。onDoubleTapを渡すと
+ * onTapはダブルタップ判定のタイムアウト後にしか呼ばれないため、「1タップで閉じる」が
+ * 2連打の1回目を潰さずに済む（Web版useLightboxZoomの遅延クローズと同じ考え方）。
  */
 @Composable
 private fun ZoomableLightboxImage(
     model: Any?,
     isCurrentPage: Boolean,
+    onTap: () -> Unit,
     onZoomedChanged: (Boolean) -> Unit
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
+    val scope = rememberCoroutineScope()
+    // ダブルタップのズームアニメーション。次の操作が始まったら打ち切る
+    var zoomAnimation by remember { mutableStateOf<Job?>(null) }
 
     // 拡大した画像の端が表示枠の内側に入り込まない範囲に移動量を収める（等倍では常に中央）
     fun clampOffset(candidate: Offset, forScale: Float): Offset {
@@ -560,9 +578,29 @@ private fun ZoomableLightboxImage(
         return Offset(candidate.x.coerceIn(-maxX, maxX), candidate.y.coerceIn(-maxY, maxY))
     }
 
+    // タップした点を動かさずに拡大/等倍復帰する（ピンチと同じ式の、中心をタップ位置に固定した版）
+    fun animateZoomTo(target: Float, tapPosition: Offset) {
+        val center = Offset(containerSize.width / 2f, containerSize.height / 2f)
+        val contentPoint = (tapPosition - center - offset) / scale
+        val targetOffset =
+            if (target <= 1f) Offset.Zero
+            else clampOffset(tapPosition - center - contentPoint * target, target)
+        val fromScale = scale
+        val fromOffset = offset
+        zoomAnimation?.cancel()
+        zoomAnimation = scope.launch {
+            animate(0f, 1f, animationSpec = tween(DOUBLE_TAP_ANIM_MS)) { progress, _ ->
+                scale = fromScale + (target - fromScale) * progress
+                offset = fromOffset + (targetOffset - fromOffset) * progress
+            }
+        }
+        onZoomedChanged(target > 1f)
+    }
+
     // 別のページへ送られたらズームを解除し、戻ってきた時は等倍から始める
     LaunchedEffect(isCurrentPage) {
         if (!isCurrentPage) {
+            zoomAnimation?.cancel()
             scale = 1f
             offset = Offset.Zero
         }
@@ -573,24 +611,13 @@ private fun ZoomableLightboxImage(
             .fillMaxSize()
             .onSizeChanged { containerSize = it }
             .pointerInput(Unit) {
-                // ズーム中のダブルタップ（等倍に戻す）判定用。直前に成立したタップの離した時刻
-                var lastTapUpAt = 0L
                 awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    // 未ズームの1本指タップはここで消費せず「タップで閉じる」に渡すため、
-                    // ダブルタップとして追うのはズーム中に始まったタップだけ
-                    var isTap = scale > 1f
-                    var lastUptime = down.uptimeMillis
+                    awaitFirstDown(requireUnconsumed = false)
+                    // 新しい操作が始まったらダブルタップのアニメーションは打ち切る
+                    zoomAnimation?.cancel()
                     do {
                         val event = awaitPointerEvent()
                         val multiTouch = event.changes.size > 1
-                        if (multiTouch) isTap = false
-                        event.changes.firstOrNull()?.let { change ->
-                            lastUptime = change.uptimeMillis
-                            if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) {
-                                isTap = false
-                            }
-                        }
                         if (multiTouch || scale > 1f) {
                             val zoomChange = event.calculateZoom()
                             val panChange = event.calculatePan()
@@ -610,21 +637,16 @@ private fun ZoomableLightboxImage(
                             event.changes.forEach { it.consume() }
                         }
                     } while (event.changes.any { it.pressed })
-                    if (isTap && lastUptime - down.uptimeMillis < viewConfiguration.longPressTimeoutMillis) {
-                        // 間隔は「1タップ目を離してから2タップ目を押すまで」で測る
-                        if (down.uptimeMillis - lastTapUpAt < viewConfiguration.doubleTapTimeoutMillis && scale > 1f) {
-                            // ズーム中のダブルタップは等倍に戻す
-                            scale = 1f
-                            offset = Offset.Zero
-                            onZoomedChanged(false)
-                            lastTapUpAt = 0L
-                        } else {
-                            lastTapUpAt = lastUptime
-                        }
-                    } else {
-                        lastTapUpAt = 0L
-                    }
                 }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    // 拡大中のタップでは閉じない（等倍に戻してから閉じる。Web版と同じ）
+                    onTap = { if (scale <= 1f) onTap() },
+                    onDoubleTap = { position ->
+                        animateZoomTo(if (scale > 1f) 1f else DOUBLE_TAP_SCALE, position)
+                    }
+                )
             }
     ) {
         SubcomposeAsyncImage(

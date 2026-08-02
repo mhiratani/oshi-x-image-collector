@@ -82,8 +82,9 @@ export default function SharedGalleryPage() {
     return () => observer.disconnect();
   }, [hasMore, loading, loadMore]);
 
-  // 拡大表示中のピンチイン/アウトによるズームと、ズーム中のドラッグでの表示位置移動
-  const zoom = useLightboxZoom(selected?.media_key ?? null);
+  // 拡大表示中のピンチイン/アウトによるズームと、ズーム中のドラッグでの表示位置移動、
+  // ダブルタップでの拡大。単発タップで閉じる処理はダブルタップ判定のため少し遅れて呼ばれる
+  const zoom = useLightboxZoom(selected?.media_key ?? null, () => setSelected(null));
   // 拡大表示中のスワイプで前後の画像に送る
   const pager = useLightboxPager({
     items,
@@ -144,7 +145,15 @@ export default function SharedGalleryPage() {
           onTouchEnd={(e) => { zoom.handleTouchEnd(e); pager.handleTouchEnd(e); }}
         >
           <LightboxPager pager={pager} zoom={zoom} />
-          <div className="meta" onClick={(e) => e.stopPropagation()}>
+          {/* メタ情報の操作は閉じる/ズーム/ページ送りの対象外にする（touchも止めないと
+              ボタンのタップが単発タップ扱いになって拡大表示が閉じてしまう） */}
+          <div
+            className="meta"
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+          >
             <div className="meta-info">
               <span>{new Date(selected.posted_at).toLocaleString('ja-JP')}</span>
             </div>
