@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import IdolImage from '@/components/IdolImage';
-import { useLightboxSwipe } from '@/lib/useLightboxSwipe';
+import LightboxPager from '@/components/LightboxPager';
+import { useLightboxPager } from '@/lib/useLightboxPager';
 import { useLightboxZoom } from '@/lib/useLightboxZoom';
 import { useHistoryBackClose } from '@/lib/useHistoryBackClose';
 
@@ -81,17 +82,18 @@ export default function SharedGalleryPage() {
     return () => observer.disconnect();
   }, [hasMore, loading, loadMore]);
 
+  // 拡大表示中のピンチイン/アウトによるズームと、ズーム中のドラッグでの表示位置移動
+  const zoom = useLightboxZoom(selected?.media_key ?? null);
   // 拡大表示中のスワイプで前後の画像に送る
-  const { handleTouchStart, handleTouchEnd, wasSwipe } = useLightboxSwipe({
+  const pager = useLightboxPager({
     items,
     selected,
     setSelected,
     hasMore,
     loading,
     loadMore,
+    isZoomedNow: zoom.isZoomedNow,
   });
-  // 拡大表示中のピンチイン/アウトによるズームと、ズーム中のドラッグでの表示位置移動
-  const zoom = useLightboxZoom(selected?.media_key ?? null);
   // 拡大表示中は「戻る」でページごと戻さず、拡大表示を閉じるだけにする
   useHistoryBackClose('lightbox', selected !== null, () => setSelected(null));
   // フィルター中は「戻る」でページごと戻さず、フィルターをリセットするだけにする
@@ -136,20 +138,12 @@ export default function SharedGalleryPage() {
         <div
           className="lightbox"
           // ズーム中はタップ（合成click含む）で閉じない。等倍に戻してから閉じる
-          onClick={() => { if (!wasSwipe() && !zoom.wasGesture() && !zoom.isZoomedNow()) setSelected(null); }}
-          onTouchStart={(e) => { zoom.handleTouchStart(e); handleTouchStart(e); }}
-          onTouchMove={zoom.handleTouchMove}
-          onTouchEnd={(e) => { zoom.handleTouchEnd(e); if (!zoom.isZoomedNow()) handleTouchEnd(e); }}
+          onClick={() => { if (!pager.wasSwipe() && !zoom.wasGesture() && !zoom.isZoomedNow()) setSelected(null); }}
+          onTouchStart={(e) => { zoom.handleTouchStart(e); pager.handleTouchStart(e); }}
+          onTouchMove={(e) => { zoom.handleTouchMove(e); pager.handleTouchMove(e); }}
+          onTouchEnd={(e) => { zoom.handleTouchEnd(e); pager.handleTouchEnd(e); }}
         >
-          <div className="zoomable" ref={zoom.targetRef} style={zoom.style}>
-            <IdolImage
-              key={selected.media_key}
-              xCdnUrl={selected.x_cdn_url}
-              r2BackupUrl={selected.r2_backup_url}
-              altText="拡大画像"
-              size="orig"
-            />
-          </div>
+          <LightboxPager pager={pager} zoom={zoom} />
           <div className="meta" onClick={(e) => e.stopPropagation()}>
             <div className="meta-info">
               <span>{new Date(selected.posted_at).toLocaleString('ja-JP')}</span>

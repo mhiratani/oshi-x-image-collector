@@ -287,6 +287,8 @@ body {
 
 /* ---- ライトボックス ---- */
 .lightbox {
+  /* 画像の表示領域の高さ。ページ送りの1ページ分の高さでもある */
+  --lightbox-height: 82vh;
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.88);
@@ -300,19 +302,46 @@ body {
   touch-action: none;
 }
 
+/* 画像送り（useLightboxPager）。前後のページははみ出す位置に置くので枠で切り取る */
+.lightbox-pager {
+  position: relative;
+  width: 100%;
+  height: var(--lightbox-height);
+  /* 縦に余裕が無くても縮めない（縮むと枠で画像が切れてしまう） */
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+
+/* スワイプの移動量ぶんだけ左右に動かす、前後の画像を並べたトラック */
+.lightbox-track {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+/* 前(-1)・現在(0)・次(+1)の各ページ。位置はuseLightboxPagerがtransformで与える */
+.lightbox-page {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* ピンチズームの変形（useLightboxZoom）を画像だけに適用するためのラッパー */
 .lightbox .zoomable {
   display: flex;
   align-items: center;
   justify-content: center;
   max-width: 100%;
+  max-height: 100%;
   transform-origin: center center;
   will-change: transform;
 }
 
 .lightbox img {
-  max-width: 95vw;
-  max-height: 82vh;
+  max-width: 100%;
+  max-height: var(--lightbox-height);
   object-fit: contain;
   border-radius: 4px;
 }
@@ -472,11 +501,8 @@ table.data-table th {
 
   /* ライトボックスのボタン行が画面に収まりきるよう、画像を少し縮めて余白を確保 */
   .lightbox {
+    --lightbox-height: 64vh;
     padding: 12px;
-  }
-
-  .lightbox img {
-    max-height: 64vh;
   }
 
   .lightbox .meta {
