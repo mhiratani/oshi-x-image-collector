@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 
 type Transform = { scale: number; tx: number; ty: number };
 
+export type LightboxZoomApi = ReturnType<typeof useLightboxZoom>;
+
 const IDENTITY: Transform = { scale: 1, tx: 0, ty: 0 };
 const MAX_SCALE = 5;
 // 指を離した時にこれ以下なら等倍へスナップする（ピンチイン終わりの微妙なズレを吸収）
@@ -37,7 +39,7 @@ type Gesture = {
 // 表示位置移動、ズーム中のダブルタップによる等倍への復帰。
 // CSSの .lightbox { touch-action: none } と組み合わせて使う（ブラウザ既定の
 // ページ全体ズームを止め、画像だけを変形させるため）。
-// スワイプ送り（useLightboxSwipe）とは独立しており、呼び出し側でズーム中はスワイプ送りと
+// スワイプ送り（useLightboxPager）とは独立しており、呼び出し側でズーム中はスワイプ送りと
 // タップで閉じる処理をスキップする。
 export function useLightboxZoom(resetKey: string | null) {
   const [transform, setTransform] = useState<Transform>(IDENTITY);

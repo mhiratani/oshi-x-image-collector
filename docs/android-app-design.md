@@ -193,7 +193,7 @@ sequenceDiagram
 
 データ層（取得・バックフィル・顔検出・クラウド同期）はできていたが、UIがWeb版（`frontend/app/(app)/`）に大きく遅れていたため、以下をWeb版準拠で実装した。
 
-- **拡大表示（lightbox）**: タイルタップで全画面表示。`HorizontalPager`によるスワイプ画像送り・読み込み中インジケータ・メタ情報（@screen_name/投稿日時/元ツイートを開く/顔判定の手動上書きボタン）・「戻る」やタップで閉じる（全画面`Dialog`のため戻るでアプリが終了しない）。Web版の`useLightboxSwipe`/`useLightboxHistoryBack`に対応。
+- **拡大表示（lightbox）**: タイルタップで全画面表示。`HorizontalPager`によるスワイプ画像送り・読み込み中インジケータ・メタ情報（@screen_name/投稿日時/元ツイートを開く/顔判定の手動上書きボタン）・「戻る」やタップで閉じる（全画面`Dialog`のため戻るでアプリが終了しない）。Web版の`useLightboxPager`（当時は`useLightboxSwipe`）/`useLightboxHistoryBack`に対応。
 - **アカウント絞り込みチップ**: 「すべて/@name (枚数)/顔のみ」のトグルチップ（複数選択可）。1アカウント絞り込み時以外はタイル左下に@nameバッジを表示。
 - **バックフィルUI**: Web版と同じく一覧末尾のフッターへ移設（アカウント画面から削除）。「ストック済みN枚をすべて表示しました」「これ以上遡れる過去の投稿はありません」等のステータス表示、1アカウント絞り込み中はそのアカウントのみ遡り、複数選択中は不可メッセージ。
 - **顔判定の手動上書き**: Web版`PATCH /api/media/[mediaKey]`相当。`faceReviewed = true`で以降の自動判定から除外し、バックアップON時はFirestoreにもミラー。
