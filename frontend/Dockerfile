@@ -1,7 +1,10 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
-COPY package.json ./
-RUN npm install
+# package-lock.json も渡して npm ci にすることで、毎回の依存ツリー解決(レジストリ問い合わせ)を
+# 丸ごと省ける。--no-cache ビルドでも効く。package.json を編集したら
+# ローカルで npm install して lockfile を更新すること(食い違うと npm ci はエラーで落ちる)。
+COPY package.json package-lock.json ./
+RUN npm ci
 
 FROM node:20-alpine AS builder
 WORKDIR /app
