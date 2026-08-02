@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import FirebaseAnalytics from '@/components/FirebaseAnalytics';
 import '../globals.css';
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export default function ShareLayout({ children }: { children: React.ReactNode })
           <span className="brand">oshi-x-image-collector</span>
         </header>
         <main className="main">{children}</main>
+        <FirebaseAnalytics />
       </body>
     </html>
   );

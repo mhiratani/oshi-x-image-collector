@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { auth, signOut } from '@/auth';
+import FirebaseAnalytics from '@/components/FirebaseAnalytics';
 import HeaderNav from '@/components/HeaderNav';
 import '../globals.css';
 
@@ -32,6 +33,7 @@ export default async function RootLayout({
           <HeaderNav displayName={displayName} onSignOut={handleSignOut} />
         </header>
         <main className="main">{children}</main>
+        <FirebaseAnalytics />
       </body>
     </html>
   );
