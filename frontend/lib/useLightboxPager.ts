@@ -46,7 +46,7 @@ type Drag = {
 
 // 拡大表示（ライトボックス）中の画像送り。Androidアプリの HorizontalPager と同じ操作感になるよう、
 // 前後の画像を左右に並べたトラックを指の動きに追従させ、指を離したところで隣のページへ収める
-// （移動量が足りなければ元のページへ戻す）。
+// （移動量が足りなければ元のページへ戻す）。PCでは左右の矢印キーでも同じ収まりアニメーションで送る。
 // スワイプ操作の直後にブラウザが合成clickを発火させてライトボックスが閉じてしまうことがあるため、
 // wasSwipe() で直前の操作がスワイプだったかを消費的に判定できるようにしている。
 // ズーム中（useLightboxZoom）はページ送りをせず、1本指ドラッグを表示位置の移動に譲る。
@@ -189,6 +189,54 @@ export function useLightboxPager<T extends WithMediaKey>({
     }
     timer.current = setTimeout(settle, SNAP_MS);
   };
+
+  // 矢印キーでの画像送り（PC）。スワイプで指を離した後と同じ収まりアニメーションで隣のページへ送る。
+  const step = (dir: 1 | -1) => {
+    if (!selected || isZoomedNow()) return;
+    // 収まり待ちの送りがあれば、その送り先を起点に次を決める（連打で同じ画像に留まらないように）
+    const baseKey = (pending.current ?? selected).media_key;
+    const baseIndex = items.findIndex((i) => i.media_key === baseKey);
+    if (baseIndex < 0) return;
+    const target = items[baseIndex + dir] ?? null;
+    if (!target) {
+      // 表示済みの末尾から先へ送ろうとしたら追加読み込みする
+      if (dir === 1 && hasMore && !loading) loadMore();
+      return;
+    }
+    if (timer.current) {
+      // アニメーション中の連打は待たせず、待機中の送りを送り先ごと差し替えて即座に確定する
+      pending.current = target;
+      settle();
+      return;
+    }
+    pending.current = target;
+    setSnapping(true);
+    setDx(dir === 1 ? -pageStride() : pageStride());
+    timer.current = setTimeout(settle, SNAP_MS);
+  };
+
+  // キー操作のリスナー登録は拡大表示の開閉時だけにしたいので、最新のstepはrefで参照する
+  const stepRef = useRef(step);
+  stepRef.current = step;
+
+  const open = selected !== null;
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // 入力欄にフォーカスがある間はカーソル移動を優先する
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (el?.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      e.preventDefault(); // 背後のページがスクロールしないように
+      // 押しっぱなしの時だけは収まりアニメーションの間隔に合わせて送る（速すぎて飛ばしすぎないように）
+      if (e.repeat && timer.current) return;
+      stepRef.current(e.key === 'ArrowRight' ? 1 : -1);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open]);
 
   // ライトボックスのonClickから呼ぶ。直前(500ms以内)の操作が横スワイプならtrueを返し、呼び出し側は
   // 閉じる処理をスキップする（スワイプ直後の合成clickでライトボックスが閉じてしまうのを防ぐ）。
