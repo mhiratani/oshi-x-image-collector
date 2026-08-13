@@ -105,11 +105,12 @@
     <string name="settings_r2_secret_key">シークレットアクセスキー</string>
     <string name="settings_r2_endpoint">エンドポイント（https://&lt;ACCOUNT_ID&gt;.r2.cloudflarestorage.com）</string>
 
-    <string name="settings_cloud_restore_section">クラウドからの復元・同期</string>
-    <string name="settings_cloud_restore_description">クラウドに保存済みのアカウント・メタデータ・画像を、この端末へ取り込みます。ローカルの既存データは消えません。</string>
+    <string name="settings_cloud_restore_section">クラウドから復元</string>
+    <string name="settings_cloud_restore_description">ローカルの既存データは消えません。通常は画像タブの「最新を取得」が自動で同期するため、この操作は不要です。</string>
+    <string name="settings_cloud_restore_reason_empty">この端末にはまだデータがありません。クラウドから取り込めます。</string>
+    <string name="settings_cloud_restore_reason_missing">まだ取り込めていない画像が %1$d 件あります。</string>
+    <string name="settings_cloud_restore_reason_done">取り込めるデータはすべて揃っています。</string>
     <string name="settings_cloud_restore_button">クラウドから復元</string>
-    <string name="settings_cloud_sync_button">クラウドと同期</string>
-    <string name="settings_cloud_sync_success">同期完了: アカウント%1$d件、メタデータ%2$d件、画像%3$d件ダウンロード（失敗%4$d件）</string>
     <string name="settings_cloud_restore_fetching">データを取得中…</string>
     <string name="settings_cloud_restore_downloading">画像をダウンロード中 (%1$d/%2$d)</string>
     <string name="settings_cloud_restore_success">復元完了: アカウント%1$d件、メタデータ%2$d件、画像%3$d件ダウンロード（失敗%4$d件）</string>

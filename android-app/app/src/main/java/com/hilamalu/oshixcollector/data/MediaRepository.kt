@@ -440,12 +440,25 @@ class MediaRepository(context: Context) {
             }
         }
 
-        val candidates = mediaAssetDao.getBackedUp()
-            .filter { it.localImagePath == null || !File(it.localImagePath).exists() }
-        val (downloaded, failed) = downloadMissingImages(candidates, onProgress)
+        val (downloaded, failed) = downloadMissingImages(missingLocalImages(), onProgress)
 
         return RestoreResult(accountsRestored, mediaRowsRestored, downloaded, failed)
     }
+
+    /**
+     * R2にバックアップ済みなのに、この端末には画像ファイルが無い行（未取得・端末側で消えた）。
+     * 復元の対象抽出と、設定画面が復元カードを出すかの判定の両方で使う。
+     */
+    private suspend fun missingLocalImages(): List<MediaAssetEntity> = withContext(Dispatchers.IO) {
+        mediaAssetDao.getBackedUp()
+            .filter { it.localImagePath == null || !File(it.localImagePath).exists() }
+    }
+
+    /**
+     * まだクラウドから取り込めていない画像の件数。
+     * 0件かつローカルにデータがあるなら、復元操作は何もすることが無い。
+     */
+    suspend fun countMissingLocalImages(): Int = missingLocalImages().size
 
     private suspend fun downloadMissingImages(
         candidates: List<MediaAssetEntity>,
