@@ -9,6 +9,7 @@ X（Twitter）の指定アカウントから画像を定期収集し、バック
 - `frontend/lib/repo/` : Firestoreへのデータアクセス層（テーブル/コレクションごとの読み書き関数群）
 - `docs/web-firestore-migration-design.md` : Postgres → Firestore 移行の設計（コレクション構成・インデックス等）
 - `docs/web-firestore-migration-runbook.md` : 本番環境での移行・切り替え手順（メンテナンス手順・検証チェックリスト・ロールバック手順）
+- `docs/web-reveal-gating-removal-runbook.md` : 新着表示ゲート撤廃の反映手順（インデックス→アプリの順序が重要）
 - `firestore.indexes.json` : Firestoreの複合インデックス定義（`firebase deploy --only firestore:indexes` でデプロイ）
 - `android-app/` : Android版（Kotlin, 新規）。設計は `docs/android-app-design.md` を参照。現状はビルド可能な最小スケルトンのみ（機能未実装）
 
