@@ -20,6 +20,8 @@
 
     <!-- Media List Screen -->
     <string name="media_refresh">最新を取得</string>
+    <string name="media_view_masonry">masonry表示に切り替え</string>
+    <string name="media_view_grid">正方形表示に切り替え</string>
     <string name="media_empty">画像がまだありません\nアカウントタブから追跡アカウントを追加してください</string>
     <string name="media_empty_face_only">顔が写っている画像がまだありません</string>
     <string name="media_face_only_filter">🙂 顔のみ</string>

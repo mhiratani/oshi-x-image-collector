@@ -10,16 +10,19 @@ import com.hilamalu.oshixcollector.data.MediaRepository
 import com.hilamalu.oshixcollector.data.backup.CloudBackupSettings
 import com.hilamalu.oshixcollector.data.backup.GoogleAuthManager
 import com.hilamalu.oshixcollector.data.db.MediaAssetEntity
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
 /** 絞り込みチップ1つ分の表示データ（Web版toolbarの「@name (枚数)」に対応）。 */
@@ -28,6 +31,9 @@ data class AccountChip(
     val xUserId: String,
     val mediaCount: Int
 )
+
+/** 一覧の並べ方。[GRID]=正方形3列、[MASONRY]=元の縦横比のまま2列で段違いに並べる。 */
+enum class MediaViewMode { GRID, MASONRY }
 
 // Firestore/ML Kitの呼び出しにタイムアウトが無く、通信が固まるとスピナーが無限に回り続けるため上限を設ける
 private const val SYNC_TIMEOUT_MS = 120_000L
@@ -96,6 +102,21 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val isFavoritesOnly: StateFlow<Boolean> = favoritesOnly
     val selectedAccountId: StateFlow<String?> = accountFilter
 
+    // 表示モードはViewModel保持のみ（DataStoreに永続化しない）。画面回転では維持され、アプリを終了すると正方形に戻る
+    private val viewMode = MutableStateFlow(MediaViewMode.GRID)
+    val currentViewMode: StateFlow<MediaViewMode> = viewMode
+
+    /** masonry表示用の縦横比キャッシュ（mediaKey→幅÷高さ）。未登録のキーは正方形として扱う。 */
+    private val aspectRatioCache = MutableStateFlow<Map<String, Float>>(emptyMap())
+    val aspectRatios: StateFlow<Map<String, Float>> = aspectRatioCache
+
+    /** 縦横比の読み取りを試したmediaKey（失敗分を含む）。同じ画像を何度も読み直さないための記録。 */
+    private val aspectRatioAttempted = mutableSetOf<String>()
+
+    /** masonryへの切り替え時に縦横比を読み込んでいる間だけtrue（トグルボタンをスピナーにする）。 */
+    var isPreparingMasonry by mutableStateOf(false)
+        private set
+
     var isRefreshing by mutableStateOf(false)
         private set
 
@@ -119,6 +140,16 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         // 前回の顔判定が途中で中断された（画面を離れてviewModelScopeごとキャンセルされた等）
         // 未判定画像が残っていても、次の同期を待たずに処理できるよう起動時にも一度実行する
         runFaceDetection()
+
+        // masonry表示中に新着や絞り込み変更で一覧が変わったとき、未取得分の縦横比だけ追加で読む。
+        // 正方形表示のときはmediaを購読しない（Roomのフローを不要に起こし続けないため）
+        viewModelScope.launch {
+            viewMode.collectLatest { mode ->
+                if (mode == MediaViewMode.MASONRY) {
+                    media.collect { assets -> loadAspectRatios(assets) }
+                }
+            }
+        }
     }
 
     /**
@@ -229,6 +260,40 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     /** 拡大表示からの顔判定の手動上書き（Web版のtoggleFace移植）。 */
     fun overrideFace(mediaKey: String, isFace: Boolean) = launchMutation {
         repository.overrideFace(mediaKey, isFace)
+    }
+
+    /**
+     * 正方形表示とmasonry表示の切り替え。
+     * masonryへ切り替えるときは、タイルの高さが後からずれないよう、
+     * 表示中の全画像の縦横比を読み終えてからモードを変える。
+     */
+    fun toggleViewMode() {
+        if (viewMode.value == MediaViewMode.MASONRY) {
+            viewMode.value = MediaViewMode.GRID
+            return
+        }
+        if (isPreparingMasonry) return
+        viewModelScope.launch {
+            isPreparingMasonry = true
+            try {
+                loadAspectRatios(media.value)
+                viewMode.value = MediaViewMode.MASONRY
+            } finally {
+                isPreparingMasonry = false
+            }
+        }
+    }
+
+    /** [assets]のうち未取得のものだけ縦横比を読み、まとめてキャッシュへ反映する。 */
+    private suspend fun loadAspectRatios(assets: List<MediaAssetEntity>) {
+        val pending = assets.filter { it.mediaKey !in aspectRatioAttempted }
+        if (pending.isEmpty()) return
+        val loaded = withContext(Dispatchers.IO) {
+            pending.mapNotNull { asset -> repository.aspectRatioOf(asset)?.let { asset.mediaKey to it } }
+        }
+        // ローカル画像がまだ無い等で読めなかったものも記録し、一覧が更新されるたびに再試行しないようにする
+        pending.forEach { aspectRatioAttempted += it.mediaKey }
+        if (loaded.isNotEmpty()) aspectRatioCache.value = aspectRatioCache.value + loaded
     }
 
     fun setFaceOnly(enabled: Boolean) {
