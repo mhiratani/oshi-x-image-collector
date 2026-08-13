@@ -24,7 +24,7 @@ export async function GET() {
 
   return NextResponse.json({
     running: workerState.running,
-    totalPending, // cronが取得済みだが未公開(revealed=false)の件数
+    totalPending, // cronが取得済みで、まだ新着として確認されていない(revealed=false)件数
     needsInitial, // ID解決済みだが初回クロール未実行
     unresolved, // screen_name 登録直後でID未解決
     lastError: workerState.lastError,

@@ -32,8 +32,8 @@ export async function runBatch() {
   workerState.backfillProgress = { done: 0, total: 0 };
   console.log(`[batch] start ${new Date().toISOString()}`);
   try {
-    // cronで新着を実際に取得・保存まで行う（画面には revealed=false のため出さない）。
-    // 表示への反映は「最新を取得」ボタン（/api/reveal）でまとめて公開する
+    // cronで新着を実際に取得・保存まで行う。保存した時点で画面にも出る（表示のゲートは無い）。
+    // revealed=false は「新着バナーで未通知」の印にだけ使う
     await resolvePendingUserIds();
     await collectAllAccounts();
     if (BACKFILL) await backfillAllAccounts();
@@ -68,8 +68,9 @@ async function resolvePendingUserIds() {
 }
 
 // 新着方向の差分取得（since_id）。初回クロール（last_fetched_id が空）も兼ねる。
-// 初回クロールは取得したその場で画面に出す(revealed=true)が、既にlast_fetched_idが
-// あった＝定期実行での差分取得は revealed=false で保存し、ボタン押下時の公開を待つ
+// 取得したものはいずれもすぐ画面に出る。初回クロールは「新着」ではないので既読(revealed=true)
+// で保存し、既にlast_fetched_idがあった＝定期実行での差分取得だけ未読(revealed=false)にして
+// 新着バナーに件数を出す
 async function collectAllAccounts() {
   const accounts = (await targetAccounts.listResolved(OWNER_UID)).filter((a) => !a.sync_paused);
 
@@ -149,7 +150,7 @@ async function backfillAllAccounts(xUserId) {
 
       // 途中でエラーになっても取得済みページ分は保存し、カーソルも進める
       // （バックフィルは古い方向に進むだけなので部分成功でも整合する）。
-      // ユーザーが明示的に押した操作なので即座に公開する
+      // 過去の投稿は「新着」ではないので既読(revealed=true)で保存する
       await media.insertMediaBatch(OWNER_UID, fetched, account.x_user_id, true);
 
       await targetAccounts.updateBackfill(OWNER_UID, account.screen_name, {
