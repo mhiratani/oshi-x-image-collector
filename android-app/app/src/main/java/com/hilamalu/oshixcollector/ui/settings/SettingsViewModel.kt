@@ -32,14 +32,20 @@ sealed interface TransferUiState {
     data class Failed(val message: String) : TransferUiState
 }
 
+/** 機種変更用データパック（画像＋メタデータのZIP）の書き出し/取り込みの状態。 */
+sealed interface DataPackUiState {
+    data object Idle : DataPackUiState
+    data class Exporting(val completed: Int, val total: Int) : DataPackUiState
+    data class Importing(val completed: Int, val total: Int) : DataPackUiState
+    data class Exported(val imageCount: Int) : DataPackUiState
+    data class Imported(val result: MediaRepository.DataPackResult) : DataPackUiState
+    data class Failed(val message: String) : DataPackUiState
+}
+
 sealed interface RestoreUiState {
     data object Idle : RestoreUiState
     data class InProgress(val progress: MediaRepository.RestoreProgress) : RestoreUiState
-    data class Success(
-        val result: MediaRepository.RestoreResult,
-        /** ローカルが空の状態から実行した初回復元か（表示文言を「復元完了」/「同期完了」で出し分ける）。 */
-        val isInitialRestore: Boolean
-    ) : RestoreUiState
+    data class Success(val result: MediaRepository.RestoreResult) : RestoreUiState
     data class Failed(val message: String) : RestoreUiState
 }
 
@@ -64,13 +70,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     /**
-     * ローカルにデータがあるか。復元/同期ボタンのラベル出し分けに使う
-     * （空=初回なので「クラウドから復元」、データあり=「クラウドと同期」）。
-     * 初期値trueにして、既存ユーザーに一瞬「復元」ラベルが見えるのを避ける。
+     * ローカルにデータがあるか。復元カードを出すかの判定に使う。
+     * 初期値trueにして、既存ユーザーに一瞬カードが見えてしまうのを避ける。
      */
     val hasLocalData: StateFlow<Boolean> = repository.accounts
         .map { it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
+
+    /**
+     * まだクラウドから取り込めていない画像の件数。
+     * ローカルにデータがあっても、前回の復元が画像ダウンロード中に失敗していれば1件以上残る。
+     * これを見ずに「ローカルが空か」だけで判定すると、復元はアカウントを先に書き込む
+     * （[MediaRepository.restoreFromCloud]）ため、再開したい場面でカードが消えてしまう。
+     */
+    var missingImageCount by mutableStateOf(0)
+        private set
 
     var xBearerToken by mutableStateOf(secureSettings.xBearerToken.orEmpty())
     var r2BucketName by mutableStateOf(secureSettings.r2BucketName.orEmpty())
@@ -115,6 +129,19 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         // 前回の操作が途中で終わった場合（設定を埋めた直後にアプリを閉じた等）に備えて、
         // 画面を開いた時点で実効フラグを意思＋設定状況に合わせ直す。
         syncEffectiveEnabled()
+        refreshMissingImageCount()
+        refreshLocalDataSize()
+    }
+
+    /** 復元カードの表示判定に使う残件数を数え直す。画面を開いた時と復元完了時に呼ぶ。 */
+    private fun refreshMissingImageCount() {
+        viewModelScope.launch {
+            missingImageCount = try {
+                repository.countMissingLocalImages()
+            } catch (e: Exception) {
+                0
+            }
+        }
     }
 
     private fun storedFirebaseConfig() = listOf(
@@ -257,7 +284,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun restoreFromCloud() {
         if (restoreState is RestoreUiState.InProgress) return
         viewModelScope.launch {
-            val isInitialRestore = !hasLocalData.value
             restoreState = RestoreUiState.InProgress(MediaRepository.RestoreProgress.FetchingMetadata)
             try {
                 if (googleAuthManager.currentUser == null) {
@@ -267,10 +293,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 val result = repository.restoreFromCloud { progress ->
                     restoreState = RestoreUiState.InProgress(progress)
                 }
-                restoreState = RestoreUiState.Success(result, isInitialRestore)
+                restoreState = RestoreUiState.Success(result)
             } catch (e: Exception) {
                 restoreState = RestoreUiState.Failed(e.message ?: "復元に失敗しました")
             }
+            // 成功・失敗どちらでも残件数は変わるため、カードの表示判定を更新する
+            refreshMissingImageCount()
         }
     }
 
@@ -342,5 +370,71 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun dismissTransferState() {
         transferState = TransferUiState.Idle
+    }
+
+    // ── 機種変更用データパック（画像＋メタデータのZIP） ──
+
+    var dataPackState by mutableStateOf<DataPackUiState>(DataPackUiState.Idle)
+        private set
+
+    /** 書き出し前に見せる現在のデータ量（画像枚数, 合計バイト数）。 */
+    var localDataSize by mutableStateOf(0 to 0L)
+        private set
+
+    fun refreshLocalDataSize() {
+        viewModelScope.launch {
+            localDataSize = try {
+                repository.localDataSize()
+            } catch (e: Exception) {
+                0 to 0L
+            }
+        }
+    }
+
+    fun exportDataPack(uri: Uri) {
+        if (dataPackState is DataPackUiState.Exporting) return
+        viewModelScope.launch {
+            dataPackState = DataPackUiState.Exporting(0, 0)
+            dataPackState = try {
+                val context = getApplication<Application>()
+                val imageCount = withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
+                        repository.exportDataPack(out) { progress ->
+                            dataPackState = DataPackUiState.Exporting(progress.completed, progress.total)
+                        }
+                    } ?: throw IllegalStateException("保存先を開けませんでした")
+                }
+                DataPackUiState.Exported(imageCount)
+            } catch (e: Exception) {
+                DataPackUiState.Failed(e.message ?: e.javaClass.simpleName)
+            }
+        }
+    }
+
+    fun importDataPack(uri: Uri) {
+        if (dataPackState is DataPackUiState.Importing) return
+        viewModelScope.launch {
+            dataPackState = DataPackUiState.Importing(0, 0)
+            dataPackState = try {
+                val context = getApplication<Application>()
+                val result = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        repository.importDataPack(input) { progress ->
+                            dataPackState = DataPackUiState.Importing(progress.completed, progress.total)
+                        }
+                    } ?: throw IllegalStateException("ファイルを開けませんでした")
+                }
+                DataPackUiState.Imported(result)
+            } catch (e: Exception) {
+                DataPackUiState.Failed(e.message ?: e.javaClass.simpleName)
+            }
+            refreshLocalDataSize()
+            // 取り込みで画像が埋まると復元カードの表示条件も変わる
+            refreshMissingImageCount()
+        }
+    }
+
+    fun dismissDataPackState() {
+        dataPackState = DataPackUiState.Idle
     }
 }
