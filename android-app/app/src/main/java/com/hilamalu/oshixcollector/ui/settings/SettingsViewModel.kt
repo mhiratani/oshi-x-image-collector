@@ -2,11 +2,13 @@ package com.hilamalu.oshixcollector.ui.settings
 
 import android.app.Application
 import android.net.Uri
+import androidx.annotation.StringRes
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hilamalu.oshixcollector.R
 import com.hilamalu.oshixcollector.data.MediaRepository
 import com.hilamalu.oshixcollector.data.backup.CloudBackupSettings
 import com.hilamalu.oshixcollector.data.backup.FirebaseAppProvider
@@ -16,6 +18,7 @@ import com.hilamalu.oshixcollector.data.settings.SettingsTransfer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -46,6 +49,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val googleAuthManager = GoogleAuthManager(application)
     private val repository = MediaRepository(application)
 
+    /**
+     * マスタートグルの状態（＝クラウドバックアップを使う意思）。
+     * Firebase未設定・未サインインでもONにでき、ONの間だけR2/Firebaseの入力欄を表示する。
+     */
+    val backupRequested: StateFlow<Boolean> = cloudBackupSettings.isRequested
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /**
+     * 実際にミラーが走る状態か（MediaRepositoryが見るフラグ）。
+     * [backupRequested]と必要な設定が全て揃った時にだけtrueになる。
+     */
     val cloudBackupEnabled: StateFlow<Boolean> = cloudBackupSettings.isEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
@@ -73,9 +87,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     var isFirebaseConfigured by mutableStateOf(secureSettings.isFirebaseConfigured)
         private set
 
+    /** R2が揃っているか。未設定でもメタデータのバックアップは動くため、UIでは「任意」として扱う。 */
+    var isR2Configured by mutableStateOf(secureSettings.isR2Configured)
+        private set
+
     var signedInEmail by mutableStateOf(googleAuthManager.currentUser?.email)
         private set
 
+    /** Firebase構成の変更に伴ってサインアウトした直後か。再ログインを促す案内の表示に使う。 */
+    var signedOutByConfigChange by mutableStateOf(false)
+        private set
+
+    /** Snackbarに出すエラー。発生箇所ごとに文脈を含んだ完成形の文言を入れる。 */
     var errorMessage by mutableStateOf<String?>(null)
         private set
 
@@ -87,6 +110,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
      * Firebase構成のスナップショット。保存済みの値と比べて再初期化の要否を判定する。
      */
     private var appliedFirebaseConfig = storedFirebaseConfig()
+
+    init {
+        // 前回の操作が途中で終わった場合（設定を埋めた直後にアプリを閉じた等）に備えて、
+        // 画面を開いた時点で実効フラグを意思＋設定状況に合わせ直す。
+        syncEffectiveEnabled()
+    }
 
     private fun storedFirebaseConfig() = listOf(
         secureSettings.firebaseApiKey,
@@ -107,6 +136,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         secureSettings.r2AccessKeyId = r2AccessKeyId.ifBlank { null }
         secureSettings.r2SecretAccessKey = r2SecretAccessKey.ifBlank { null }
         secureSettings.r2Endpoint = r2Endpoint.ifBlank { null }
+        isR2Configured = secureSettings.isR2Configured
     }
 
     /**
@@ -133,13 +163,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         // サインアウトして「ログインする」ボタンからやり直してもらう。
         // FirebaseAppProviderはまだ旧構成で初期化されたインスタンスを保持しているため、
         // サインアウト（旧FirebaseAppに対して行う必要がある）→リセットの順で実行する。
+        val wasSignedIn = signedInEmail != null
         googleAuthManager.signOut()
         signedInEmail = null
-        viewModelScope.launch { cloudBackupSettings.setEnabled(false) }
+        // 黙ってサインアウトされると理由が分からないため、画面に再ログインを促す案内を出す
+        if (wasSignedIn) signedOutByConfigChange = true
         // 既存の初期化済みFirebaseAppは古い値を保持し続けるため、次回アクセス時に
         // 新しい値で再初期化されるようリセットする。
         FirebaseAppProvider.reset(getApplication<Application>())
         appliedFirebaseConfig = stored
+        syncEffectiveEnabled()
+    }
+
+    fun dismissSignedOutNotice() {
+        signedOutByConfigChange = false
     }
 
     /**
@@ -157,36 +194,64 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         errorMessage = null
     }
 
-    /** 「ログインする」ボタンから呼ぶ。成功するとトグル表示に切り替わる。 */
+    private fun message(@StringRes templateRes: Int, e: Exception): String =
+        getApplication<Application>().getString(templateRes, e.message ?: e.javaClass.simpleName)
+
+    /** マスタートグル。ONにしただけでは実際のバックアップは始まらない（[applyEffectiveEnabled]が判断する）。 */
+    fun setBackupRequested(requested: Boolean) {
+        viewModelScope.launch {
+            cloudBackupSettings.setRequested(requested)
+            applyEffectiveEnabled()
+        }
+    }
+
+    /** バックアップに必要な設定（Firebase構成 + Googleサインイン）が揃っているか。 */
+    private fun isBackupReady(): Boolean =
+        isFirebaseConfigured && googleAuthManager.currentUser != null
+
+    /**
+     * 「使う意思」と設定状況から実効フラグ（[CloudBackupSettings.isEnabled]）を計算し直す。
+     * OFF→ONに変わった時だけ、溜まっていた未バックアップ分をまとめて送る。
+     */
+    private suspend fun applyEffectiveEnabled() {
+        val target = cloudBackupSettings.isRequested.first() && isBackupReady()
+        if (target == cloudBackupSettings.isEnabled.first()) return
+        cloudBackupSettings.setEnabled(target)
+        if (target) {
+            try {
+                repository.backupExistingIfEnabled()
+            } catch (e: Exception) {
+                errorMessage = message(R.string.settings_backup_start_failed, e)
+            }
+        }
+    }
+
+    /** [applyEffectiveEnabled]をsuspendでない場所（トグル以外の同期的な操作）から呼ぶためのラッパー。 */
+    private fun syncEffectiveEnabled() {
+        viewModelScope.launch { applyEffectiveEnabled() }
+    }
+
+    /** 「Googleでログインする」ボタンから呼ぶ。成功すると条件が揃いバックアップが動き出す。 */
     fun signIn() {
         // 入力欄にフォーカスが残ったままボタンを押した場合も、最新の入力値でサインインする
         saveAll()
         viewModelScope.launch {
             try {
                 signedInEmail = googleAuthManager.signIn().email
+                signedOutByConfigChange = false
+                applyEffectiveEnabled()
             } catch (e: Exception) {
-                errorMessage = e.message
+                errorMessage = message(R.string.settings_sign_in_failed, e)
             }
         }
     }
 
-    fun setCloudBackupEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            if (enabled) {
-                try {
-                    // トグルはログイン後にしか表示されないが、セッション失効時の保険として残す
-                    if (googleAuthManager.currentUser == null) {
-                        signedInEmail = googleAuthManager.signIn().email
-                    }
-                    cloudBackupSettings.setEnabled(true)
-                    repository.backupExistingIfEnabled()
-                } catch (e: Exception) {
-                    errorMessage = e.message
-                }
-            } else {
-                cloudBackupSettings.setEnabled(false)
-            }
-        }
+    /** 「サインアウト」ボタンから呼ぶ。サインアウト中はミラーできないため実効フラグもOFFになる。 */
+    fun signOut() {
+        googleAuthManager.signOut()
+        signedInEmail = null
+        signedOutByConfigChange = false
+        syncEffectiveEnabled()
     }
 
     fun restoreFromCloud() {
@@ -197,6 +262,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             try {
                 if (googleAuthManager.currentUser == null) {
                     signedInEmail = googleAuthManager.signIn().email
+                    applyEffectiveEnabled()
                 }
                 val result = repository.restoreFromCloud { progress ->
                     restoreState = RestoreUiState.InProgress(progress)
@@ -265,6 +331,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 firebaseAppId = secureSettings.firebaseAppId.orEmpty()
                 firebaseWebClientId = secureSettings.firebaseWebClientId.orEmpty()
                 isFirebaseConfigured = secureSettings.isFirebaseConfigured
+                isR2Configured = secureSettings.isR2Configured
                 applyFirebaseConfigIfChanged()
                 TransferUiState.Imported
             } catch (e: Exception) {

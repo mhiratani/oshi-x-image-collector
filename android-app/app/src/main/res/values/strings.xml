@@ -53,28 +53,60 @@
 
 
     <!-- Settings Screen -->
-    <string name="settings_intro_description">Xの投稿収集にはBearer Tokenの入力が必須です。機種変更や再インストール時にデータを復元したい場合は、下のクラウドバックアップの項目にR2とFirebaseの情報を入力・保存してください。</string>
+    <string name="settings_tab_common">共通設定</string>
+    <string name="settings_tab_backup">バックアップ設定</string>
+    <string name="settings_show_value">値を表示</string>
+    <string name="settings_hide_value">値を隠す</string>
+    <string name="settings_section_expand">展開する</string>
+    <string name="settings_section_collapse">折りたたむ</string>
+
+    <!-- 共通設定タブ -->
     <string name="settings_x_section">X（Twitter）API</string>
+    <string name="settings_x_description">Xの投稿収集にはBearer Tokenが必須です。X Developer Portalで取得した自分のトークンを入力してください。</string>
     <string name="settings_x_bearer_token">Bearer Token</string>
-    <string name="settings_r2_section">Cloudflare R2（クラウド画像バックアップ）</string>
-    <string name="settings_r2_bucket">バケット名</string>
-    <string name="settings_r2_account_id">アカウントID</string>
-    <string name="settings_r2_access_key">アクセスキーID</string>
-    <string name="settings_r2_secret_key">シークレットアクセスキー</string>
-    <string name="settings_r2_endpoint">エンドポイント（https://&lt;ACCOUNT_ID&gt;.r2.cloudflarestorage.com）</string>
-    <string name="settings_cloud_backup_section">クラウドバックアップ</string>
-    <string name="settings_cloud_backup_description">Googleでログインするとバックアップを有効にできます。画像本体はR2、メタデータはFirestoreへ非同期でバックアップされます（失敗してもローカルの表示には影響しません）。</string>
+    <string name="settings_x_token_missing">未設定 — 投稿の収集にはBearer Tokenが必要です</string>
+    <string name="settings_x_token_saved">設定済み</string>
+
+    <!-- バックアップ設定タブ -->
+    <string name="settings_cloud_backup_toggle_label">クラウドバックアップを有効にする</string>
+    <string name="settings_cloud_backup_off_description">機種変更・再インストール時にデータを戻せるよう、画像本体をCloudflare R2、メタデータをFirebase Firestoreへバックアップします。使う場合はスイッチをONにして、必要な設定を入力してください。</string>
+    <string name="settings_cloud_backup_on_description">バックアップは非同期で実行されます（失敗してもローカルの表示には影響しません）。下の項目がすべて揃うと自動的に開始します。</string>
+
+    <string name="settings_setup_status_section">セットアップ状況</string>
+    <string name="settings_setup_required">必須</string>
+    <string name="settings_setup_optional">任意</string>
+    <string name="settings_setup_done">設定済み</string>
+    <string name="settings_setup_firebase_title">Firebase設定</string>
+    <string name="settings_setup_firebase_todo">未設定 — 下の「Firebase」に4項目を入力してください</string>
+    <string name="settings_setup_signin_title">Googleサインイン</string>
+    <string name="settings_setup_signin_todo">未サインイン — バックアップ先を本人のものと識別するために必要です</string>
+    <string name="settings_setup_signin_blocked">Firebase設定を保存するとサインインできます</string>
+    <string name="settings_setup_r2_title">Cloudflare R2</string>
+    <string name="settings_setup_r2_todo">未設定 — 画像本体はバックアップされません（メタデータのみ）</string>
+    <string name="settings_setup_active">バックアップ実行中</string>
+    <string name="settings_setup_inactive">未完了の項目があるため、まだバックアップは実行されていません</string>
+    <string name="settings_sign_in_button">Googleでログインする</string>
+    <string name="settings_sign_out_button">サインアウト</string>
+    <string name="settings_cloud_backup_signed_in_as">サインイン中: %1$s</string>
+    <string name="settings_signed_out_by_config_change">Firebase設定が変わったためサインアウトしました。もう一度Googleでログインしてください。</string>
+
     <string name="settings_firebase_section">Firebase（Firestore同期・Googleサインイン用）</string>
     <string name="settings_firebase_description">Firebaseコンソール（https://console.firebase.google.com/）でプロジェクトを作成し、「プロジェクトの設定」に表示される値をここに入力してください（android-app/README.md参照）。</string>
     <string name="settings_firebase_api_key">APIキー</string>
     <string name="settings_firebase_project_id">プロジェクトID</string>
     <string name="settings_firebase_app_id">アプリID（1:xxx:android:xxx）</string>
     <string name="settings_firebase_web_client_id">Google Sign-In ウェブクライアントID</string>
-    <string name="settings_cloud_backup_firebase_not_configured">上記のFirebase設定を保存すると、クラウドバックアップが利用できるようになります</string>
-    <string name="settings_sign_in_description">クラウドバックアップを使うにはGoogleサインインが必要です</string>
-    <string name="settings_sign_in_button">Googleでログインする</string>
-    <string name="settings_cloud_backup_toggle_label">クラウドバックアップを有効にする</string>
-    <string name="settings_cloud_backup_signed_in_as">サインイン中: %1$s</string>
+
+    <string name="settings_r2_section">Cloudflare R2（画像本体の保存先）</string>
+    <string name="settings_r2_description">画像ファイルそのものの保存先です。未設定でもメタデータ（アカウント・お気に入り・顔判定）はFirestoreへバックアップされます。</string>
+    <string name="settings_r2_bucket">バケット名</string>
+    <string name="settings_r2_account_id">アカウントID</string>
+    <string name="settings_r2_access_key">アクセスキーID</string>
+    <string name="settings_r2_secret_key">シークレットアクセスキー</string>
+    <string name="settings_r2_endpoint">エンドポイント（https://&lt;ACCOUNT_ID&gt;.r2.cloudflarestorage.com）</string>
+
+    <string name="settings_cloud_restore_section">クラウドからの復元・同期</string>
+    <string name="settings_cloud_restore_description">クラウドに保存済みのアカウント・メタデータ・画像を、この端末へ取り込みます。ローカルの既存データは消えません。</string>
     <string name="settings_cloud_restore_button">クラウドから復元</string>
     <string name="settings_cloud_sync_button">クラウドと同期</string>
     <string name="settings_cloud_sync_success">同期完了: アカウント%1$d件、メタデータ%2$d件、画像%3$d件ダウンロード（失敗%4$d件）</string>
@@ -82,9 +114,14 @@
     <string name="settings_cloud_restore_downloading">画像をダウンロード中 (%1$d/%2$d)</string>
     <string name="settings_cloud_restore_success">復元完了: アカウント%1$d件、メタデータ%2$d件、画像%3$d件ダウンロード（失敗%4$d件）</string>
     <string name="settings_cloud_restore_failed">復元に失敗しました: %1$s</string>
+    <string name="settings_result_dismiss">閉じる</string>
     <string name="settings_sign_in_failed">サインインに失敗しました: %1$s</string>
+    <string name="settings_backup_start_failed">バックアップの開始に失敗しました: %1$s</string>
+
     <string name="settings_transfer_section">設定の引き継ぎ（機種変更）</string>
     <string name="settings_transfer_description">この画面の全設定（Bearer Token・R2・Firebase）をパスフレーズで暗号化したファイルとして書き出し、新しい端末で取り込めます。ファイルの受け渡しは任意の方法（Google Drive・USBなど）で行ってください。</string>
+    <string name="settings_transfer_passphrase_too_short">パスフレーズは8文字以上にしてください</string>
+    <string name="settings_transfer_passphrase_mismatch">パスフレーズが一致しません</string>
     <string name="settings_transfer_export_button">設定をエクスポート</string>
     <string name="settings_transfer_import_button">設定をインポート</string>
     <string name="settings_transfer_export_dialog_title">エクスポートの保護</string>
