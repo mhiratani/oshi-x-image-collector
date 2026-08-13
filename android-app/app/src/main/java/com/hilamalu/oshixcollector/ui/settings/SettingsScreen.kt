@@ -277,9 +277,11 @@ private fun BackupSettingsTab(viewModel: SettingsViewModel) {
     val effectiveEnabled by viewModel.cloudBackupEnabled.collectAsState()
     val hasLocalData by viewModel.hasLocalData.collectAsState()
 
-    // R2/Firebaseの接続設定は一度入れたら普段は触らないため、デフォルトで折りたたんでおく
+    // R2/Firebaseの接続設定は一度入れたら普段は触らないため、既定では折りたたむ。
+    // ただし必須のFirebaseが未入力のうちは開いた状態で始め、初回設定でいきなり
+    // 見出しだけの画面にならないようにする（R2は任意なのでチェックリストの案内に任せる）。
+    var firebaseExpanded by rememberSaveable { mutableStateOf(!viewModel.isFirebaseConfigured) }
     var r2Expanded by rememberSaveable { mutableStateOf(false) }
-    var firebaseExpanded by rememberSaveable { mutableStateOf(false) }
 
     SettingsTabContent {
         ElevatedCard(modifier = Modifier.fillMaxWidth()) {
