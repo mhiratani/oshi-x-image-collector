@@ -5,8 +5,9 @@ import * as targetAccounts from '@/lib/repo/targetAccounts';
 
 export const dynamic = 'force-dynamic';
 
-// POST /api/reveal — cronが裏で取得済みだが未公開(revealed=false)の画像を、
-// ログインユーザーの推しリストの範囲でまとめて公開する（X APIは呼ばない）
+// POST /api/reveal — 新着バナーの「確認」操作。ログインユーザーの推しリストの範囲で
+// 未読(revealed=false)の画像をまとめて既読にする（画像自体は保存時点で表示済み。
+// X APIは呼ばない）
 export async function POST() {
   const session = await auth();
   const uid = session!.user!.uid!;

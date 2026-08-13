@@ -18,6 +18,8 @@ export type MediaRow = {
   face_confidence: number | null;
   is_favorite: boolean;
   backup_attempts: number;
+  // 「新着」として既にユーザーへ知らせたか(既読フラグ)。表示の可否には関与せず、
+  // 新着バナーの件数にだけ使う。cronの差分取得で保存した直後だけ false になる
   revealed: boolean;
 };
 
@@ -44,6 +46,7 @@ export async function insertMediaBatch(
   uid: string,
   media: { media_key: string; tweet_id: string; url: string; posted_at: string }[],
   xUserId: string,
+  // 既読(=新着バナーで通知済み)として保存するか。false で保存したものが新着件数に乗る
   revealed: boolean
 ): Promise<void> {
   for (const group of chunk(media, FIRESTORE_BATCH_LIMIT)) {
@@ -77,7 +80,9 @@ export async function insertMediaBatch(
 export type MediaCursor = { postedAt: Date; mediaKey: string };
 
 // /api/media, /api/s/[token]/media 共通のキーセットページネーション付き一覧取得。
-// xUserIds が複数件なら 'in'（最大30件）、1件なら '==' で絞り込む
+// xUserIds が複数件なら 'in'（最大30件）、1件なら '==' で絞り込む。
+// revealed では絞り込まない: cronが取得した新着もそのまま一覧に出す（未読かどうかは
+// 新着バナーの件数表示だけの関心事で、表示のゲートには使わない）
 export async function listMedia(params: {
   uid: string;
   xUserIds: string[];
@@ -94,7 +99,6 @@ export async function listMedia(params: {
       ? col(uid).where('x_user_id', '==', xUserIds[0])
       : col(uid).where('x_user_id', 'in', xUserIds.slice(0, IN_QUERY_LIMIT));
 
-  query = query.where('revealed', '==', true);
   if (faceOnly) query = query.where('is_face', '==', true);
   if (favoriteOnly) query = query.where('is_favorite', '==', true);
   query = query.orderBy('posted_at', 'desc').orderBy('media_key', 'desc');
@@ -125,6 +129,7 @@ export async function countForXUserId(uid: string, xUserId: string): Promise<num
   return agg.data().count;
 }
 
+// 新着バナーに出す未読件数。画像自体は未読でも一覧に表示済みなので、あくまで通知用
 export async function countUnrevealed(uid: string, xUserIds: string[]): Promise<number> {
   if (xUserIds.length === 0) return 0;
   const agg = await col(uid)
@@ -135,7 +140,7 @@ export async function countUnrevealed(uid: string, xUserIds: string[]): Promise<
   return agg.data().count;
 }
 
-// cronが裏で取得済みだが未公開の画像を、渡された x_user_id の範囲でまとめて公開する
+// 未読の新着を、渡された x_user_id の範囲でまとめて既読にする（新着バナーを消すための操作）
 export async function revealAll(uid: string, xUserIds: string[]): Promise<void> {
   for (const idsGroup of chunk(xUserIds, IN_QUERY_LIMIT)) {
     await updateQueryInBatches(

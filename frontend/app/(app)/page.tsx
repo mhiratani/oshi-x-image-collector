@@ -201,8 +201,9 @@ export default function GalleryPage() {
     }, 3000);
   };
 
-  // 「最新を取得」(新着バナー側): cronが裏で取得・保存済みの画像をまとめて公開するだけ。
-  // X APIは呼ばないので即座に終わる
+  // 「表示を更新」(新着バナー側): 新着はcronが保存した時点で一覧に出ているため、
+  // ここでは開きっぱなしのタブのグリッドを先頭から読み直し、あわせて新着を既読にして
+  // バナーを消すだけ。X APIは呼ばないので即座に終わる
   const startReveal = async () => {
     setRevealing(true);
     await fetch('/api/reveal', { method: 'POST' }).catch(() => null);
@@ -323,7 +324,7 @@ export default function GalleryPage() {
         <div className="banner-info">
           <span>✨ 新着ポストがあります（{collectStatus.totalPending}件）</span>
           <button className="primary" onClick={startReveal}>
-            最新を取得
+            表示を更新
           </button>
         </div>
       )}
