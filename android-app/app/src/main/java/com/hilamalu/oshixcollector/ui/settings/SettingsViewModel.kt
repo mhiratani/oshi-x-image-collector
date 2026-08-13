@@ -32,6 +32,16 @@ sealed interface TransferUiState {
     data class Failed(val message: String) : TransferUiState
 }
 
+/** 機種変更用データパック（画像＋メタデータのZIP）の書き出し/取り込みの状態。 */
+sealed interface DataPackUiState {
+    data object Idle : DataPackUiState
+    data class Exporting(val completed: Int, val total: Int) : DataPackUiState
+    data class Importing(val completed: Int, val total: Int) : DataPackUiState
+    data class Exported(val imageCount: Int) : DataPackUiState
+    data class Imported(val result: MediaRepository.DataPackResult) : DataPackUiState
+    data class Failed(val message: String) : DataPackUiState
+}
+
 sealed interface RestoreUiState {
     data object Idle : RestoreUiState
     data class InProgress(val progress: MediaRepository.RestoreProgress) : RestoreUiState
@@ -120,6 +130,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         // 画面を開いた時点で実効フラグを意思＋設定状況に合わせ直す。
         syncEffectiveEnabled()
         refreshMissingImageCount()
+        refreshLocalDataSize()
     }
 
     /** 復元カードの表示判定に使う残件数を数え直す。画面を開いた時と復元完了時に呼ぶ。 */
@@ -359,5 +370,71 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun dismissTransferState() {
         transferState = TransferUiState.Idle
+    }
+
+    // ── 機種変更用データパック（画像＋メタデータのZIP） ──
+
+    var dataPackState by mutableStateOf<DataPackUiState>(DataPackUiState.Idle)
+        private set
+
+    /** 書き出し前に見せる現在のデータ量（画像枚数, 合計バイト数）。 */
+    var localDataSize by mutableStateOf(0 to 0L)
+        private set
+
+    fun refreshLocalDataSize() {
+        viewModelScope.launch {
+            localDataSize = try {
+                repository.localDataSize()
+            } catch (e: Exception) {
+                0 to 0L
+            }
+        }
+    }
+
+    fun exportDataPack(uri: Uri) {
+        if (dataPackState is DataPackUiState.Exporting) return
+        viewModelScope.launch {
+            dataPackState = DataPackUiState.Exporting(0, 0)
+            dataPackState = try {
+                val context = getApplication<Application>()
+                val imageCount = withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
+                        repository.exportDataPack(out) { progress ->
+                            dataPackState = DataPackUiState.Exporting(progress.completed, progress.total)
+                        }
+                    } ?: throw IllegalStateException("保存先を開けませんでした")
+                }
+                DataPackUiState.Exported(imageCount)
+            } catch (e: Exception) {
+                DataPackUiState.Failed(e.message ?: e.javaClass.simpleName)
+            }
+        }
+    }
+
+    fun importDataPack(uri: Uri) {
+        if (dataPackState is DataPackUiState.Importing) return
+        viewModelScope.launch {
+            dataPackState = DataPackUiState.Importing(0, 0)
+            dataPackState = try {
+                val context = getApplication<Application>()
+                val result = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        repository.importDataPack(input) { progress ->
+                            dataPackState = DataPackUiState.Importing(progress.completed, progress.total)
+                        }
+                    } ?: throw IllegalStateException("ファイルを開けませんでした")
+                }
+                DataPackUiState.Imported(result)
+            } catch (e: Exception) {
+                DataPackUiState.Failed(e.message ?: e.javaClass.simpleName)
+            }
+            refreshLocalDataSize()
+            // 取り込みで画像が埋まると復元カードの表示条件も変わる
+            refreshMissingImageCount()
+        }
+    }
+
+    fun dismissDataPackState() {
+        dataPackState = DataPackUiState.Idle
     }
 }

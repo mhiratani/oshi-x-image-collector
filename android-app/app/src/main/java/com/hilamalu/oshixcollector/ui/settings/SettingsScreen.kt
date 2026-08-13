@@ -63,6 +63,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import java.util.Locale
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -262,8 +263,92 @@ private fun CommonSettingsTab(viewModel: SettingsViewModel, snackbarHostState: S
                 }
             }
         }
+
+        DataPackCard(viewModel)
     }
 }
+
+/**
+ * 収集済みデータ（画像＋メタデータ）のZIP書き出し/取り込み。
+ * 認証情報だけを運ぶ「設定の引き継ぎ」とは別物で、機種変更時は両方が要る。
+ */
+@Composable
+private fun DataPackCard(viewModel: SettingsViewModel) {
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri -> if (uri != null) viewModel.exportDataPack(uri) }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> if (uri != null) viewModel.importDataPack(uri) }
+
+    // 画面に来るたびに数え直す（他タブでの取得やクラウド復元で増えているため）
+    LaunchedEffect(Unit) { viewModel.refreshLocalDataSize() }
+
+    SettingsCard(title = stringResource(R.string.settings_datapack_section)) {
+        DescriptionText(stringResource(R.string.settings_datapack_description))
+
+        val (imageCount, totalBytes) = viewModel.localDataSize
+        Text(
+            stringResource(R.string.settings_datapack_current_size, imageCount, formatMegabytes(totalBytes)),
+            style = MaterialTheme.typography.bodyMedium
+        )
+
+        val busy = viewModel.dataPackState is DataPackUiState.Exporting ||
+            viewModel.dataPackState is DataPackUiState.Importing
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { exportLauncher.launch("oshi-x-collector-data.zip") },
+                enabled = !busy && imageCount > 0
+            ) {
+                Text(stringResource(R.string.settings_datapack_export_button))
+            }
+            Button(
+                onClick = {
+                    // 書き出しは application/zip だが、共有経路によって別のMIMEで返ることがある
+                    importLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
+                },
+                enabled = !busy
+            ) {
+                Text(stringResource(R.string.settings_datapack_import_button))
+            }
+        }
+
+        when (val state = viewModel.dataPackState) {
+            is DataPackUiState.Exporting -> ProgressRow(
+                stringResource(R.string.settings_datapack_exporting, state.completed, state.total)
+            )
+            is DataPackUiState.Importing -> ProgressRow(
+                stringResource(R.string.settings_datapack_importing, state.completed, state.total)
+            )
+            is DataPackUiState.Exported -> NoticeRow(
+                text = stringResource(R.string.settings_datapack_export_success, state.imageCount),
+                color = MaterialTheme.colorScheme.primary,
+                onDismiss = { viewModel.dismissDataPackState() }
+            )
+            is DataPackUiState.Imported -> NoticeRow(
+                text = stringResource(
+                    R.string.settings_datapack_import_success,
+                    state.result.accountsImported,
+                    state.result.mediaRowsImported,
+                    state.result.imagesImported,
+                    state.result.imagesFailed
+                ),
+                color = MaterialTheme.colorScheme.primary,
+                onDismiss = { viewModel.dismissDataPackState() }
+            )
+            is DataPackUiState.Failed -> NoticeRow(
+                text = stringResource(R.string.settings_datapack_failed, state.message),
+                color = MaterialTheme.colorScheme.error,
+                onDismiss = { viewModel.dismissDataPackState() }
+            )
+            DataPackUiState.Idle -> Unit
+        }
+    }
+}
+
+/** バイト数を「12.3」のようなMB表記の文字列にする（単位は文字列リソース側で付ける）。 */
+private fun formatMegabytes(bytes: Long): String =
+    String.format(Locale.US, "%.1f", bytes / 1024.0 / 1024.0)
 
 // ─────────────────────────────── バックアップ設定タブ ───────────────────────────────
 
@@ -460,24 +545,18 @@ private fun RestoreCard(viewModel: SettingsViewModel, hasLocalData: Boolean) {
         }
 
         when (val state = viewModel.restoreState) {
-            is RestoreUiState.InProgress -> {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                    Text(
-                        when (val progress = state.progress) {
-                            MediaRepository.RestoreProgress.FetchingMetadata ->
-                                stringResource(R.string.settings_cloud_restore_fetching)
-                            is MediaRepository.RestoreProgress.DownloadingImages ->
-                                stringResource(
-                                    R.string.settings_cloud_restore_downloading,
-                                    progress.completed,
-                                    progress.total
-                                )
-                        },
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
+            is RestoreUiState.InProgress -> ProgressRow(
+                when (val progress = state.progress) {
+                    MediaRepository.RestoreProgress.FetchingMetadata ->
+                        stringResource(R.string.settings_cloud_restore_fetching)
+                    is MediaRepository.RestoreProgress.DownloadingImages ->
+                        stringResource(
+                            R.string.settings_cloud_restore_downloading,
+                            progress.completed,
+                            progress.total
+                        )
                 }
-            }
+            )
             is RestoreUiState.Success -> NoticeRow(
                 text = stringResource(
                     R.string.settings_cloud_restore_success,
@@ -555,6 +634,15 @@ private fun DescriptionText(text: String) {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
+}
+
+/** スピナー付きの進捗1行。復元とデータパックで共用する。 */
+@Composable
+private fun ProgressRow(text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        CircularProgressIndicator(modifier = Modifier.size(16.dp))
+        Text(text, modifier = Modifier.padding(start = 8.dp))
+    }
 }
 
 /** アイコン付きの1行ステータス表示。 */

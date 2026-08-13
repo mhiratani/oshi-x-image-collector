@@ -3,8 +3,16 @@ package com.hilamalu.oshixcollector.data.db
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
-/** Xから収集した1枚の画像メタデータ。画像本体は[localImagePath]が指すファイルに保存される。 */
+/**
+ * Xから収集した1枚の画像メタデータ。画像本体は[localImagePath]が指すファイルに保存される。
+ *
+ * [Serializable]は機種変更用データパック（[com.hilamalu.oshixcollector.data.transfer.DataPackTransfer]）
+ * のJSON化に使う。フィールドを増やす場合は既定値を付けて、旧バージョンで書き出した
+ * ファイルも読めるようにすること。
+ */
+@Serializable
 @Entity(
     tableName = "media_assets",
     indices = [

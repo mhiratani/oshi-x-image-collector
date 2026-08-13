@@ -18,6 +18,15 @@ class ImageStorage(
 
     fun fileFor(mediaKey: String): File = File(mediaDir, "$mediaKey.jpg")
 
+    /** 保存済み画像の枚数と合計バイト数。データパック書き出し前のサイズ表示に使う。 */
+    suspend fun totalSize(): Pair<Int, Long> = withContext(Dispatchers.IO) {
+        val files = mediaDir.listFiles().orEmpty()
+        files.size to files.sumOf { it.length() }
+    }
+
+    /** 取り込み先の空き容量（バイト）。データパックの展開前チェックに使う。 */
+    fun usableSpaceBytes(): Long = context.filesDir.usableSpace
+
     /** [url]から画像をダウンロードしてローカルに保存し、保存先の絶対パスを返す。 */
     suspend fun download(mediaKey: String, url: String): String = withContext(Dispatchers.IO) {
         val destination = fileFor(mediaKey)

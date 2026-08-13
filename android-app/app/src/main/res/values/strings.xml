@@ -137,6 +137,18 @@
     <string name="settings_transfer_import_success">設定を取り込みました。クラウドバックアップを使う場合はGoogleで再ログインしてください</string>
     <string name="settings_transfer_failed">引き継ぎに失敗しました: %1$s</string>
 
+    <!-- データのバックアップ（画像＋メタデータのZIP。クラウド未使用でも機種変更できるように） -->
+    <string name="settings_datapack_section">データのバックアップ</string>
+    <string name="settings_datapack_description">収集済みの画像とメタデータ（お気に入り・顔判定を含む）をZIPファイル1つに書き出します。クラウドバックアップを使っていなくても、機種変更や再インストール前にこれを保存しておけばデータを戻せます。上の「設定の引き継ぎ」とは別物で、機種変更時は両方を持ち出してください。認証情報は含まないため暗号化されません。</string>
+    <string name="settings_datapack_current_size">この端末の画像: %1$d 枚（約 %2$s MB）</string>
+    <string name="settings_datapack_export_button">データを書き出す</string>
+    <string name="settings_datapack_import_button">データを取り込む</string>
+    <string name="settings_datapack_exporting">書き出し中 (%1$d/%2$d)</string>
+    <string name="settings_datapack_importing">取り込み中 (%1$d/%2$d)</string>
+    <string name="settings_datapack_export_success">画像%1$d件を書き出しました</string>
+    <string name="settings_datapack_import_success">取り込み完了: アカウント%1$d件、メタデータ%2$d件、画像%3$d件（失敗%4$d件）</string>
+    <string name="settings_datapack_failed">データの処理に失敗しました: %1$s</string>
+
     <!-- Usage Screen -->
     <string name="usage_reload">再読み込み</string>
     <string name="usage_today">今日</string>

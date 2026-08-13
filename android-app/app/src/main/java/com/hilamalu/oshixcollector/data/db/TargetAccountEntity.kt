@@ -2,8 +2,16 @@ package com.hilamalu.oshixcollector.data.db
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
-/** 追跡対象のXアカウント（`@`なしのscreen_name をキーにする）。 */
+/**
+ * 追跡対象のXアカウント（`@`なしのscreen_name をキーにする）。
+ *
+ * [Serializable]は機種変更用データパック（[com.hilamalu.oshixcollector.data.transfer.DataPackTransfer]）
+ * のJSON化に使う。フィールドを増やす場合は既定値を付けて、旧バージョンで書き出した
+ * ファイルも読めるようにすること。
+ */
+@Serializable
 @Entity(tableName = "target_accounts")
 data class TargetAccountEntity(
     @PrimaryKey val screenName: String,

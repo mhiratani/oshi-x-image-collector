@@ -11,9 +11,12 @@ import com.hilamalu.oshixcollector.data.db.MediaAssetEntity
 import com.hilamalu.oshixcollector.data.db.TargetAccountEntity
 import com.hilamalu.oshixcollector.data.face.FaceDetector
 import com.hilamalu.oshixcollector.data.settings.SecureSettings
+import com.hilamalu.oshixcollector.data.transfer.DataPackTransfer
 import com.hilamalu.oshixcollector.data.xapi.PhotoMedia
 import com.hilamalu.oshixcollector.data.xapi.XApiClient
 import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -459,6 +462,87 @@ class MediaRepository(context: Context) {
      * 0件かつローカルにデータがあるなら、復元操作は何もすることが無い。
      */
     suspend fun countMissingLocalImages(): Int = missingLocalImages().size
+
+    // ── 機種変更用データパック（クラウドを使わないオフラインの持ち出し） ──
+
+    /** データパックの書き出し/取り込みの進捗。 */
+    data class DataPackProgress(val completed: Int, val total: Int)
+
+    /** データパック取り込みの結果サマリー。 */
+    data class DataPackResult(
+        val accountsImported: Int,
+        val mediaRowsImported: Int,
+        val imagesImported: Int,
+        val imagesFailed: Int
+    )
+
+    /** 書き出し前に見せる現在のデータ量（画像枚数と合計バイト数）。 */
+    suspend fun localDataSize(): Pair<Int, Long> = imageStorage.totalSize()
+
+    /**
+     * 収集済みデータを[out]へZIPで書き出す。画像は1枚ずつストリームコピーするため
+     * 数GB規模でもメモリに載らない。呼び出し側は[out]のクローズに責任を持つ。
+     */
+    suspend fun exportDataPack(
+        out: OutputStream,
+        onProgress: (DataPackProgress) -> Unit = {}
+    ): Int = withContext(Dispatchers.IO) {
+        val accounts = targetAccountDao.getAll()
+        val media = mediaAssetDao.observeAll().first()
+        // 実体のあるファイルだけを対象にする（DL失敗で参照だけ残っている行を除く）
+        val images = media.mapNotNull { asset ->
+            val file = asset.localImagePath?.let(::File)?.takeIf { it.exists() } ?: return@mapNotNull null
+            DataPackTransfer.ImageEntry(asset.mediaKey, file.length()) { file.inputStream() }
+        }
+        DataPackTransfer.write(out, accounts, media, images, System.currentTimeMillis()) { done, total ->
+            onProgress(DataPackProgress(done, total))
+        }
+        images.size
+    }
+
+    /**
+     * [input]のZIPを取り込む。マージ方針は[restoreFromCloud]と揃えて「追加のみ」とし、
+     * 既存のローカル行は壊さない。途中で失敗しても再実行すれば安全に再開できる。
+     */
+    suspend fun importDataPack(
+        input: InputStream,
+        onProgress: (DataPackProgress) -> Unit = {}
+    ): DataPackResult = withContext(Dispatchers.IO) {
+        var accountsImported = 0
+        var mediaRowsImported = 0
+
+        val result = DataPackTransfer.read(
+            input = input,
+            onMetadata = { manifest, accounts, media ->
+                val needed = manifest.imageBytesTotal
+                val usable = imageStorage.usableSpaceBytes()
+                if (needed > usable) {
+                    throw IllegalStateException(
+                        "空き容量が足りません（必要 約${needed / 1024 / 1024}MB / 空き 約${usable / 1024 / 1024}MB）"
+                    )
+                }
+                for (account in accounts) {
+                    if (targetAccountDao.getByScreenName(account.screenName) == null) accountsImported++
+                }
+                if (accounts.isNotEmpty()) targetAccountDao.upsertAll(accounts)
+                if (media.isNotEmpty()) {
+                    // IGNORE指定なので既存行は上書きされず、新規行だけが入る
+                    mediaRowsImported = mediaAssetDao.insertAll(media).count { it != -1L }
+                }
+            },
+            sink = object : DataPackTransfer.ImageSink {
+                // 書き出し元の絶対パスは他端末では無効なので、この端末の保存先へ書き直す
+                override suspend fun save(mediaKey: String, bytes: ByteArray): String =
+                    imageStorage.saveBytes(mediaKey, bytes)
+            },
+            onImageRestored = { mediaKey, path ->
+                mediaAssetDao.updateLocalImagePath(mediaKey, path)
+            },
+            onProgress = { done, total -> onProgress(DataPackProgress(done, total)) }
+        )
+
+        DataPackResult(accountsImported, mediaRowsImported, result.imagesRestored, result.imagesFailed)
+    }
 
     private suspend fun downloadMissingImages(
         candidates: List<MediaAssetEntity>,

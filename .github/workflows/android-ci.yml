@@ -31,6 +31,8 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: デバッグAPKをビルド
+      - name: デバッグAPKをビルドし単体テストを実行
         working-directory: android-app
-        run: ./gradlew --no-daemon assembleDebug
+        # データパック(機種変更用の持ち出しZIP)はバグると収集済み画像を復元できなくなるため、
+        # コンパイルだけでなく DataPackTransfer の往復テストもここで回す
+        run: ./gradlew --no-daemon assembleDebug testDebugUnitTest
