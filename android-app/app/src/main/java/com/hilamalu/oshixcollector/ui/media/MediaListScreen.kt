@@ -31,16 +31,22 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.ViewQuilt
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -105,6 +111,8 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
     val backfillAllDone by viewModel.backfillAllDone.collectAsState()
     val isFaceOnly by viewModel.isFaceOnly.collectAsState()
     val isFavoritesOnly by viewModel.isFavoritesOnly.collectAsState()
+    val viewMode by viewModel.currentViewMode.collectAsState()
+    val aspectRatios by viewModel.aspectRatios.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
     // 拡大表示中の画像（Web版のselected。mediaKeyで持つことでリスト更新時のずれを防ぐ）
@@ -161,6 +169,25 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
                     }
                 },
                 actions = {
+                    // masonry⇔正方形の切り替え。アイコンは「押すと切り替わる先」を表す
+                    IconButton(
+                        onClick = { viewModel.toggleViewMode() },
+                        enabled = !viewModel.isPreparingMasonry
+                    ) {
+                        when {
+                            // masonryへの切り替え時は全画像の縦横比を読み終えるまで待つ
+                            viewModel.isPreparingMasonry ->
+                                CircularProgressIndicator(modifier = Modifier.padding(4.dp))
+                            viewMode == MediaViewMode.MASONRY -> Icon(
+                                Icons.Filled.GridView,
+                                contentDescription = stringResource(R.string.media_view_grid)
+                            )
+                            else -> Icon(
+                                Icons.Filled.ViewQuilt,
+                                contentDescription = stringResource(R.string.media_view_masonry)
+                            )
+                        }
+                    }
                     // 「最新を取得」(クラウド同期→X API取得)。旧クラウド同期アイコンの位置に配置
                     IconButton(onClick = { viewModel.refresh() }, enabled = !viewModel.isRefreshing) {
                         if (viewModel.isRefreshing) {
@@ -200,30 +227,64 @@ fun MediaListScreen(viewModel: MediaViewModel = viewModel()) {
                     }
                 }
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    modifier = Modifier.fillMaxSize(),
-                    // 右下のFABが最終行や過去読み込みボタンに重ならないよう下部に余白を確保
-                    contentPadding = PaddingValues(start = 4.dp, top = 4.dp, end = 4.dp, bottom = 88.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    items(media, key = MediaAssetEntity::mediaKey) { asset ->
-                        MediaTile(
-                            asset = asset,
-                            // Web版と同じく1アカウント絞り込み中はバッジを出さない
-                            badgeScreenName = if (selectedAccountId == null) screenNames[asset.xUserId] else null,
-                            onClick = { selectedKey = asset.mediaKey }
-                        )
+                // 右下のFABが最終行や過去読み込みボタンに重ならないよう下部に余白を確保
+                val gridPadding = PaddingValues(start = 4.dp, top = 4.dp, end = 4.dp, bottom = 88.dp)
+                // Web版と同じく1アカウント絞り込み中はバッジを出さない
+                val badgeFor = { asset: MediaAssetEntity ->
+                    if (selectedAccountId == null) screenNames[asset.xUserId] else null
+                }
+                if (viewMode == MediaViewMode.MASONRY) {
+                    LazyVerticalStaggeredGrid(
+                        columns = StaggeredGridCells.Fixed(2),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = gridPadding,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        // staggeredでは縦の間隔はverticalArrangementではなくこちらで指定する
+                        verticalItemSpacing = 4.dp
+                    ) {
+                        items(media, key = MediaAssetEntity::mediaKey) { asset ->
+                            MediaTile(
+                                asset = asset,
+                                badgeScreenName = badgeFor(asset),
+                                // 読めなかった画像は正方形にフォールバック
+                                aspectRatio = aspectRatios[asset.mediaKey] ?: 1f,
+                                onClick = { selectedKey = asset.mediaKey }
+                            )
+                        }
+                        // Web版のstatusフッター: 件数表示とバックフィル操作
+                        item(span = StaggeredGridItemSpan.FullLine) {
+                            BackfillFooter(
+                                itemCount = media.size,
+                                allDone = backfillAllDone,
+                                isBackfilling = viewModel.isBackfilling,
+                                onBackfill = { viewModel.backfill() }
+                            )
+                        }
                     }
-                    // Web版のstatusフッター: 件数表示とバックフィル操作
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        BackfillFooter(
-                            itemCount = media.size,
-                            allDone = backfillAllDone,
-                            isBackfilling = viewModel.isBackfilling,
-                            onBackfill = { viewModel.backfill() }
-                        )
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = gridPadding,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(media, key = MediaAssetEntity::mediaKey) { asset ->
+                            MediaTile(
+                                asset = asset,
+                                badgeScreenName = badgeFor(asset),
+                                onClick = { selectedKey = asset.mediaKey }
+                            )
+                        }
+                        // Web版のstatusフッター: 件数表示とバックフィル操作
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            BackfillFooter(
+                                itemCount = media.size,
+                                allDone = backfillAllDone,
+                                isBackfilling = viewModel.isBackfilling,
+                                onBackfill = { viewModel.backfill() }
+                            )
+                        }
                     }
                 }
             }
@@ -317,15 +378,21 @@ private fun AccountFilterRow(
     )
 }
 
+/**
+ * 一覧の1タイル。[aspectRatio]（幅÷高さ）が1fなら正方形表示、画像本来の比率を渡すとmasonry表示になる。
+ * 角丸はBoxのclipで付けているので、どちらの比率でも同じ8dpの丸みになる。
+ */
 @Composable
 private fun MediaTile(
     asset: MediaAssetEntity,
     badgeScreenName: String?,
+    aspectRatio: Float = 1f,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
-            .aspectRatio(1f)
+            // 3:1のバナー画像などで1タイルが極端に伸び縮みしないよう上下限を設ける
+            .aspectRatio(aspectRatio.coerceIn(0.5f, 2f))
             .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
     ) {

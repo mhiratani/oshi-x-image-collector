@@ -1,6 +1,7 @@
 package com.hilamalu.oshixcollector.data
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -36,5 +37,23 @@ class ImageStorage(
         val destination = fileFor(mediaKey)
         destination.outputStream().use { out -> out.write(bytes) }
         destination.absolutePath
+    }
+
+    /**
+     * [path]の画像の縦横比（幅÷高さ）を返す。masonry表示でタイルの高さを描画前に確定させるために使う。
+     * ピクセルはデコードせず境界情報だけ読むため1枚あたり1ms未満で済む。
+     * ファイルが無い・画像として読めない場合はnull。
+     */
+    suspend fun aspectRatio(path: String): Float? = withContext(Dispatchers.IO) {
+        val file = File(path)
+        if (!file.exists()) return@withContext null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        try {
+            file.inputStream().use { BitmapFactory.decodeStream(it, null, bounds) }
+        } catch (e: Exception) {
+            return@withContext null
+        }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@withContext null
+        bounds.outWidth.toFloat() / bounds.outHeight.toFloat()
     }
 }

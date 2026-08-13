@@ -72,6 +72,13 @@ class MediaRepository(context: Context) {
     /** オンボーディング画面から呼ぶ。追跡アカウントが1件も無ければ「ローカルデータが空」とみなす。 */
     suspend fun hasAnyAccounts(): Boolean = targetAccountDao.count() > 0
 
+    /**
+     * masonry表示用に[asset]の縦横比（幅÷高さ）を返す。
+     * ローカル画像が未保存の場合はnull（呼び出し側で正方形にフォールバックする）。
+     */
+    suspend fun aspectRatioOf(asset: MediaAssetEntity): Float? =
+        asset.localImagePath?.let { imageStorage.aspectRatio(it) }
+
     private fun xApiClient(): XApiClient {
         val token = secureSettings.xBearerToken
         require(!token.isNullOrBlank()) { "設定画面でX Bearer Tokenを入力してください" }
