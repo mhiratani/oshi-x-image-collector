@@ -78,6 +78,15 @@ firebase deploy --only firestore:indexes --project <FIREBASE_PROJECT_ID>
 
 コレクション構成・インデックス一覧の詳細は `docs/web-firestore-migration-design.md` を参照。
 
+> **本番（Raspberry Pi）で既存環境にインデックスを追加する場合**：この本番Piには firebase CLI を常設していない。`firestore.indexes.json` に定義を追加しても本番には自動反映されないため、追加コミットにはデプロイ作業をセットにすること。firebase CLI を使わず、frontendコンテナのサービスアカウント（`FIREBASE_CLIENT_EMAIL`/`FIREBASE_PRIVATE_KEY`、`cloud-platform` 権限）で Firestore Admin REST API に POST して作成する：
+>
+> ```
+> POST https://firestore.googleapis.com/v1/projects/<PROJECT_ID>/databases/(default)/collectionGroups/<コレクション>/indexes
+> body: { "queryScope": "COLLECTION", "fields": [ { "fieldPath": "...", "order": "ASCENDING|DESCENDING" }, ... ] }
+> ```
+>
+> `google-auth-library` の JWT で `cloud-platform` スコープのアクセストークンを取り、上記を POST する。スクリプトは `docker cp` でコンテナ内に入れ、`docker compose exec -T -e NODE_PATH=/app/node_modules frontend node <script>` で実行する（秘密鍵の `\n` エスケープが壊れるのでインラインの `node -e` は避け、ファイル経由にする）。**作成は追加のみで既存インデックスは消えない。** 作成直後は `state: CREATING` で、同URLへの GET で対象が `READY` になるのを確認してからアプリをリビルドすること。既存クエリの絞り込みを変更する場合は「インデックス有効化 → リビルド」の順序を守らないと、一覧取得が一時的に `FAILED_PRECONDITION` で壊れる。
+
 ### 4. 起動
 
 ```
