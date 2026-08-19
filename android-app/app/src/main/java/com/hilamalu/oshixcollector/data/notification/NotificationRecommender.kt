@@ -16,7 +16,7 @@ class NotificationRecommender(context: Context) {
         /** 通知を表示した。 */
         NOTIFIED,
 
-        /** 条件に合う画像が1枚も無い（対象アカウント未収集・お気に入り0件など）。 */
+        /** 条件に合う画像が1枚も無い（対象アカウント未収集・お気に入り0件・顔ありの画像が無いなど）。 */
         NO_CANDIDATE,
 
         /** 端末側で通知が許可されていない。 */
@@ -33,6 +33,7 @@ class NotificationRecommender(context: Context) {
 
         val asset = db.mediaAssetDao().pickRandom(
             favoritesOnly = settings.favoritesOnly,
+            faceOnly = settings.faceOnly,
             allAccounts = allAccounts,
             xUserIds = targetUserIds.toList()
         ) ?: return Result.NO_CANDIDATE

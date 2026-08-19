@@ -25,7 +25,8 @@ class NotificationScheduleTest {
         startHour = startHour,
         endHour = endHour,
         targetUserIds = emptySet(),
-        favoritesOnly = false
+        favoritesOnly = false,
+        faceOnly = false
     )
 
     private fun at(date: String, hour: Int): Long =

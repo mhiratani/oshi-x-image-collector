@@ -43,6 +43,9 @@ class NotificationSettingsViewModel(application: Application) : AndroidViewModel
     val favoritesOnly: StateFlow<Boolean> = settings.favoritesOnly
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
+    val faceOnly: StateFlow<Boolean> = settings.faceOnly
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     val accounts: StateFlow<List<NotifiableAccount>> = repository.accounts
         .map { accounts ->
             accounts.mapNotNull { account ->
@@ -79,6 +82,8 @@ class NotificationSettingsViewModel(application: Application) : AndroidViewModel
     fun setFavoritesOnly(favoritesOnly: Boolean) = updateSettings {
         settings.setFavoritesOnly(favoritesOnly)
     }
+
+    fun setFaceOnly(faceOnly: Boolean) = updateSettings { settings.setFaceOnly(faceOnly) }
 
     /** 設定画面の「今すぐテスト通知」。予約とは無関係にその場で1枚抽選して通知する。 */
     fun sendTestNotification() {
