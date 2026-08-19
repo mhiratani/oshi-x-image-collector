@@ -39,6 +39,40 @@
     <string name="media_favorite_toggle">お気に入り</string>
 
 
+    <!-- おすすめ通知 -->
+    <string name="notification_channel_name">推しのおすすめ</string>
+    <string name="notification_channel_description">収集済みの画像からランダムに選んだ1枚を通知します。</string>
+    <string name="notification_title">推しの1枚が届きました</string>
+    <string name="notification_title_with_account">\@%1$s の1枚が届きました</string>
+    <string name="notification_body">%1$s の投稿 ・ タップしてXで開く</string>
+
+    <!-- 通知設定画面 -->
+    <string name="notification_settings_title">おすすめ通知</string>
+    <string name="notification_settings_open">おすすめ通知の設定</string>
+    <string name="notification_settings_back">戻る</string>
+    <string name="notification_enable_label">おすすめ通知を有効にする</string>
+    <string name="notification_enable_description">収集済みの画像からランダムに1枚を選んで通知します。通知をタップすると、その投稿がXアプリで開きます。</string>
+    <string name="notification_open_system_settings">端末の通知設定を開く</string>
+    <string name="notification_permission_denied">通知が許可されていません。端末の設定 &gt; アプリ &gt; 推し画像コレクター &gt; 通知 から許可してください。</string>
+    <string name="notification_frequency_section">通知の頻度</string>
+    <string name="notification_per_day">1日 %1$d 回</string>
+    <string name="notification_per_day_description">指定した時間帯を回数で等分し、それぞれの区間内のランダムな時刻に通知します。端末の省電力状態によっては数分〜数十分ずれることがあります。</string>
+    <string name="notification_hours_section">通知する時間帯</string>
+    <string name="notification_hours_start">開始</string>
+    <string name="notification_hours_end">終了</string>
+    <string name="notification_hour_value">%1$d 時</string>
+    <string name="notification_hours_description">この時間帯の外では通知しません（就寝中に鳴らさないための設定です）。</string>
+    <string name="notification_accounts_section">通知するアカウント</string>
+    <string name="notification_accounts_empty">追跡中のアカウントがありません。アカウントタブから追加してください。</string>
+    <string name="notification_accounts_none_selected">アカウントが1つも選ばれていないため、すべてのアカウントから抽選します。</string>
+    <string name="notification_favorites_only_label">お気に入りだけから選ぶ</string>
+    <string name="notification_favorites_only_description">オンにすると、お気に入り登録した画像だけが通知に出ます。</string>
+    <string name="notification_test_button">今すぐテスト通知</string>
+    <string name="notification_test_notified">テスト通知を送りました</string>
+    <string name="notification_test_no_candidate">条件に合う画像がありません。対象アカウントやお気に入りの設定を見直してください。</string>
+    <string name="notification_test_not_permitted">通知が許可されていないため送れませんでした</string>
+
+
     <!-- Accounts Screen -->
     <string name="accounts_add_hint">アカウント名を入力（@なし）</string>
     <string name="accounts_add">追加</string>

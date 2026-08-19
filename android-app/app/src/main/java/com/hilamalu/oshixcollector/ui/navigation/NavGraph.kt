@@ -29,11 +29,15 @@ import androidx.navigation.compose.rememberNavController
 import com.hilamalu.oshixcollector.R
 import com.hilamalu.oshixcollector.ui.accounts.AccountsScreen
 import com.hilamalu.oshixcollector.ui.media.MediaListScreen
+import com.hilamalu.oshixcollector.ui.notification.NotificationSettingsScreen
 import com.hilamalu.oshixcollector.ui.onboarding.OnboardingScreen
 import com.hilamalu.oshixcollector.ui.settings.SettingsScreen
 import com.hilamalu.oshixcollector.ui.usage.UsageScreen
 
 private const val START_ROUTE = "start"
+
+/** 画像一覧のヘッダーから開くおすすめ通知の設定。ボトムナビには載せない下位画面。 */
+private const val NOTIFICATION_SETTINGS_ROUTE = "notification_settings"
 
 private sealed class Destination(val route: String, val labelRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     data object Media : Destination("media", R.string.nav_media, Icons.Filled.Photo)
@@ -108,7 +112,14 @@ fun OshiXImageCollectorNavGraph(navController: NavHostController = rememberNavCo
                     }
                 )
             }
-            composable(Destination.Media.route) { MediaListScreen() }
+            composable(Destination.Media.route) {
+                MediaListScreen(
+                    onOpenNotificationSettings = { navController.navigate(NOTIFICATION_SETTINGS_ROUTE) }
+                )
+            }
+            composable(NOTIFICATION_SETTINGS_ROUTE) {
+                NotificationSettingsScreen(onBack = { navController.popBackStack() })
+            }
             composable(Destination.Accounts.route) { AccountsScreen() }
             composable(Destination.Usage.route) { UsageScreen() }
             composable(Destination.Settings.route) { SettingsScreen() }

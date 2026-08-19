@@ -4,6 +4,9 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Android 13+ の通知表示に必要。おすすめ通知の設定をONにした時に実行時許可を求める -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!--
         Android 11+ のパッケージ可視性対策。X(旧Twitter)公式アプリを名指しで起動できるよう、
         twitter:// スキームと https(App Link)、およびパッケージ本体を <queries> に宣言する。
@@ -51,6 +54,19 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+            おすすめ通知のタップ先。UIを持たず、Xアプリ（無ければブラウザ）へ中継してすぐ終了する。
+            Android 12以降はBroadcastReceiver/Service経由の通知トランポリンが禁止されているため、
+            「Xアプリの有無で開き方を変える」処理を挟むにはActivityである必要がある。
+        -->
+        <activity
+            android:name=".tweet.TweetOpenActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
     </application>
 
