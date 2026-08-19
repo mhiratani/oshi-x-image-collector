@@ -80,6 +80,27 @@ interface MediaAssetDao {
     @Query("SELECT mediaKey FROM media_assets WHERE mediaKey IN (:mediaKeys)")
     suspend fun getExistingMediaKeys(mediaKeys: List<String>): List<String>
 
+    /**
+     * おすすめ通知の抽選用: 条件に合う画像から1枚をランダムに選ぶ。
+     * ローカル画像が無い行は通知に絵を出せないため除外する。
+     * [allAccounts]がtrueなら[xUserIds]は無視して全アカウントを対象にする。
+     */
+    @Query(
+        """
+        SELECT * FROM media_assets
+        WHERE localImagePath IS NOT NULL
+          AND (:favoritesOnly = 0 OR isFavorite = 1)
+          AND (:allAccounts = 1 OR xUserId IN (:xUserIds))
+        ORDER BY RANDOM()
+        LIMIT 1
+        """
+    )
+    suspend fun pickRandom(
+        favoritesOnly: Boolean,
+        allAccounts: Boolean,
+        xUserIds: List<String>
+    ): MediaAssetEntity?
+
     /** バックフィル起点解決用（Web版の getOldestTweetId 相当）: 保存済みの中で最も古いツイートID。 */
     @Query("SELECT tweetId FROM media_assets WHERE xUserId = :xUserId ORDER BY postedAt ASC LIMIT 1")
     suspend fun getOldestTweetId(xUserId: String): String?

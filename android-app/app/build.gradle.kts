@@ -110,6 +110,9 @@ dependencies {
     // ML Kit（顔検出。オンデバイス・無料。Web版のBlazeFaceと同じ役割）
     implementation(libs.mlkit.face.detection)
 
+    // WorkManager（推し通知のスケジューリング）
+    implementation(libs.androidx.work.runtime.ktx)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
