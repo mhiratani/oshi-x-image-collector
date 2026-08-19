@@ -31,7 +31,8 @@ class NotificationSettings(private val context: Context) {
         val endHour: Int,
         /** 空なら追跡中の全アカウントが対象。 */
         val targetUserIds: Set<String>,
-        val favoritesOnly: Boolean
+        val favoritesOnly: Boolean,
+        val faceOnly: Boolean
     )
 
     val isEnabled: Flow<Boolean> = context.notificationDataStore.data
@@ -57,6 +58,10 @@ class NotificationSettings(private val context: Context) {
     val favoritesOnly: Flow<Boolean> = context.notificationDataStore.data
         .map { prefs -> prefs[KEY_FAVORITES_ONLY] ?: false }
 
+    /** trueなら顔ありと判定された画像だけから抽選する。[favoritesOnly]と併用するとAND条件になる。 */
+    val faceOnly: Flow<Boolean> = context.notificationDataStore.data
+        .map { prefs -> prefs[KEY_FACE_ONLY] ?: false }
+
     suspend fun snapshot(): Snapshot {
         val prefs = context.notificationDataStore.data.first()
         return Snapshot(
@@ -65,7 +70,8 @@ class NotificationSettings(private val context: Context) {
             startHour = (prefs[KEY_START_HOUR] ?: DEFAULT_START_HOUR).coerceIn(0, 23),
             endHour = (prefs[KEY_END_HOUR] ?: DEFAULT_END_HOUR).coerceIn(1, 24),
             targetUserIds = prefs[KEY_TARGET_USER_IDS] ?: emptySet(),
-            favoritesOnly = prefs[KEY_FAVORITES_ONLY] ?: false
+            favoritesOnly = prefs[KEY_FAVORITES_ONLY] ?: false,
+            faceOnly = prefs[KEY_FACE_ONLY] ?: false
         )
     }
 
@@ -95,6 +101,10 @@ class NotificationSettings(private val context: Context) {
         context.notificationDataStore.edit { prefs -> prefs[KEY_FAVORITES_ONLY] = favoritesOnly }
     }
 
+    suspend fun setFaceOnly(faceOnly: Boolean) {
+        context.notificationDataStore.edit { prefs -> prefs[KEY_FACE_ONLY] = faceOnly }
+    }
+
     companion object {
         /** 既定値。設定を読み込む前のUIの初期表示にも使う。 */
         const val DEFAULT_PER_DAY = 3
@@ -107,5 +117,6 @@ class NotificationSettings(private val context: Context) {
         private val KEY_END_HOUR = intPreferencesKey("notification_end_hour")
         private val KEY_TARGET_USER_IDS = stringSetPreferencesKey("notification_target_user_ids")
         private val KEY_FAVORITES_ONLY = booleanPreferencesKey("notification_favorites_only")
+        private val KEY_FACE_ONLY = booleanPreferencesKey("notification_face_only")
     }
 }

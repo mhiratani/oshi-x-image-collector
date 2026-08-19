@@ -90,6 +90,7 @@ interface MediaAssetDao {
         SELECT * FROM media_assets
         WHERE localImagePath IS NOT NULL
           AND (:favoritesOnly = 0 OR isFavorite = 1)
+          AND (:faceOnly = 0 OR isFace = 1)
           AND (:allAccounts = 1 OR xUserId IN (:xUserIds))
         ORDER BY RANDOM()
         LIMIT 1
@@ -97,6 +98,7 @@ interface MediaAssetDao {
     )
     suspend fun pickRandom(
         favoritesOnly: Boolean,
+        faceOnly: Boolean,
         allAccounts: Boolean,
         xUserIds: List<String>
     ): MediaAssetEntity?

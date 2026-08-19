@@ -74,6 +74,7 @@ fun NotificationSettingsScreen(
     val endHour by viewModel.endHour.collectAsState()
     val targetUserIds by viewModel.targetUserIds.collectAsState()
     val favoritesOnly by viewModel.favoritesOnly.collectAsState()
+    val faceOnly by viewModel.faceOnly.collectAsState()
     val accounts by viewModel.accounts.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -240,15 +241,26 @@ fun NotificationSettingsScreen(
                 }
 
                 SettingsCard {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            stringResource(R.string.notification_favorites_only_label),
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Switch(checked = favoritesOnly, onCheckedChange = viewModel::setFavoritesOnly)
+                    Text(
+                        stringResource(R.string.notification_filter_section),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    ToggleRow(
+                        label = stringResource(R.string.notification_favorites_only_label),
+                        description = stringResource(R.string.notification_favorites_only_description),
+                        checked = favoritesOnly,
+                        onCheckedChange = viewModel::setFavoritesOnly
+                    )
+                    ToggleRow(
+                        label = stringResource(R.string.notification_face_only_label),
+                        description = stringResource(R.string.notification_face_only_description),
+                        checked = faceOnly,
+                        onCheckedChange = viewModel::setFaceOnly
+                    )
+                    // 併用時はAND条件になる。片方だけONの時は自明なので出さない
+                    if (favoritesOnly && faceOnly) {
+                        DescriptionText(stringResource(R.string.notification_filter_both_note))
                     }
-                    DescriptionText(stringResource(R.string.notification_favorites_only_description))
                 }
 
                 Button(
@@ -287,6 +299,23 @@ private fun HourPicker(
                 )
             }
         }
+    }
+}
+
+/** 抽選対象の絞り込みスイッチ1つ分（ラベル＋説明＋スイッチ）。 */
+@Composable
+private fun ToggleRow(
+    label: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label)
+            DescriptionText(description)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 

@@ -65,8 +65,12 @@
     <string name="notification_accounts_section">通知するアカウント</string>
     <string name="notification_accounts_empty">追跡中のアカウントがありません。アカウントタブから追加してください。</string>
     <string name="notification_accounts_none_selected">アカウントが1つも選ばれていないため、すべてのアカウントから抽選します。</string>
-    <string name="notification_favorites_only_label">お気に入りだけから選ぶ</string>
-    <string name="notification_favorites_only_description">オンにすると、お気に入り登録した画像だけが通知に出ます。</string>
+    <string name="notification_filter_section">抽選対象</string>
+    <string name="notification_favorites_only_label">🌟 お気に入りだけから選ぶ</string>
+    <string name="notification_favorites_only_description">お気に入り登録した画像だけが通知に出ます。</string>
+    <string name="notification_face_only_label">🙂 顔が写っている画像だけから選ぶ</string>
+    <string name="notification_face_only_description">顔判定で「顔あり」とされた画像だけが通知に出ます。未判定の画像は対象外です。</string>
+    <string name="notification_filter_both_note">両方オンのため、「お気に入り かつ 顔あり」の画像だけが対象です。</string>
     <string name="notification_test_button">今すぐテスト通知</string>
     <string name="notification_test_notified">テスト通知を送りました</string>
     <string name="notification_test_no_candidate">条件に合う画像がありません。対象アカウントやお気に入りの設定を見直してください。</string>
